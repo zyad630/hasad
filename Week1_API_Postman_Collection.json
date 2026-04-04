@@ -1,0 +1,140 @@
+{
+	"info": {
+		"_postman_id": "4b68eaaa-84f9-467f-ad6a-2e70e1b6f0e3",
+		"name": "Hisba SaaS - Week 1 APIs",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Super Admin - Register Trial Tenant",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\\n    \"tenant_name\": \"محطة التفاح الذهبي\",\\n    \"subdomain\": \"apple-gold\",\\n    \"owner_username\": \"ahmed_manager\",\\n    \"owner_password\": \"secure_password_123\"\\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/auth/register-tenant/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"auth",
+								"register-tenant",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\\n    \"username\": \"ahmed_manager\",\\n    \"password\": \"secure_password_123\"\\n}"
+						},
+						"url": {
+							"raw": "http://apple-gold.localhost:8000/api/auth/login/",
+							"protocol": "http",
+							"host": [
+								"apple-gold",
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"auth",
+								"login",
+								""
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Suppliers & Inventory (Requires Token)",
+			"item": [
+				{
+					"name": "Post New Supplier",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer YOUR_JWT_ACCESS_TOKEN"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\\n    \"name\": \"المورد سعيد محمد\",\\n    \"phone\": \"0501234567\",\\n    \"deal_type\": \"commission\",\\n    \"commission_type\": \"percent\",\\n    \"commission_rate\": 10.0\\n}"
+						},
+						"url": {
+							"raw": "http://apple-gold.localhost:8000/api/suppliers/",
+							"protocol": "http",
+							"host": [
+								"apple-gold",
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"suppliers",
+								""
+							]
+						}
+					}
+				},
+				{
+					"name": "Get All Items (Inventory)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer YOUR_JWT_ACCESS_TOKEN"
+							}
+						],
+						"url": {
+							"raw": "http://apple-gold.localhost:8000/api/items/",
+							"protocol": "http",
+							"host": [
+								"apple-gold",
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"items",
+								""
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}

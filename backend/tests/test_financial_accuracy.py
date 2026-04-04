@@ -1,0 +1,183 @@
+import pytest
+from decimal import Decimal, ROUND_HALF_UP
+import threading
+from django.db import connection
+from django.core.exceptions import ValidationError
+
+from core.models import Tenant
+from suppliers.models import Supplier, Customer
+from inventory.models import Shipment, ShipmentItem, Item, Category
+from finance.models import CashTransaction, Settlement, Expense
+from sales.models import Sale, SaleItem
+from sales.services import SaleService
+from finance.services import SettlementService
+
+TWO_PLACES = Decimal('0.01')
+
+@pytest.fixture
+def tenant(db):
+    return Tenant.objects.create(name="Test Tenant", subdomain="test")
+
+@pytest.fixture
+def setup_data(db, tenant):
+    category = Category.objects.create(tenant=tenant, name="Veggies")
+    item = Item.objects.create(tenant=tenant, category=category, name="Tomato", base_unit="kg")
+    
+    supplier_percent = Supplier.objects.create(tenant=tenant, name="Sup1", deal_type="commission", commission_type="percent", commission_rate=Decimal("7.5"))
+    supplier_fixed = Supplier.objects.create(tenant=tenant, name="Sup2", deal_type="commission", commission_type="fixed", commission_rate=Decimal("50.0"))
+    
+    customer = Customer.objects.create(tenant=tenant, name="Cust1")
+    
+    ship_percent = Shipment.objects.create(tenant=tenant, supplier=supplier_percent, shipment_date="2025-01-01")
+    ship_item_percent = ShipmentItem.objects.create(shipment=ship_percent, item=item, quantity=1000, remaining_qty=1000, unit='kg')
+
+    ship_fixed = Shipment.objects.create(tenant=tenant, supplier=supplier_fixed, shipment_date="2025-01-01")
+    ship_item_fixed = ShipmentItem.objects.create(shipment=ship_fixed, item=item, quantity=1000, remaining_qty=1000, unit='kg')
+
+    return {
+        'tenant': tenant,
+        'supplier_percent': supplier_percent,
+        'supplier_fixed': supplier_fixed,
+        'ship_percent': ship_percent,
+        'ship_fixed': ship_fixed,
+        'ship_item_p': ship_item_percent,
+        'ship_item_f': ship_item_fixed,
+        'customer': customer
+    }
+
+@pytest.mark.django_db(transaction=True)
+def test_commission_percentage_exactness(setup_data):
+    tenant = setup_data['tenant']
+    supplier = setup_data['supplier_percent']
+    shipment = setup_data['ship_percent']
+    ship_item = setup_data['ship_item_p']
+
+    # 1000 EGP sale
+    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+        'shipment_item_id': ship_item.id,
+        'shipment_item': ship_item,
+        'quantity': 100,
+        'unit_price': 10.00
+    }])
+
+    settlement = SettlementService.confirm_settlement(tenant, None, shipment.id)
+    
+    assert settlement.total_sales == Decimal("1000.00")
+    # 7.5% of 1000 = 75.00 precisely
+    assert settlement.commission_amount == Decimal("75.00")
+
+@pytest.mark.django_db(transaction=True)
+def test_commission_fixed_amount(setup_data):
+    tenant = setup_data['tenant']
+    supplier = setup_data['supplier_fixed']
+    shipment = setup_data['ship_fixed']
+    ship_item = setup_data['ship_item_f']
+
+    # 1000 EGP sale
+    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+        'shipment_item_id': ship_item.id,
+        'shipment_item': ship_item,
+        'quantity': 100,
+        'unit_price': 10.00
+    }])
+
+    settlement = SettlementService.confirm_settlement(tenant, None, shipment.id)
+    
+    assert settlement.commission_amount == Decimal("50.00")
+
+@pytest.mark.django_db(transaction=True)
+def test_settlement_net_calculation_with_expenses(setup_data):
+    tenant = setup_data['tenant']
+    shipment = setup_data['ship_percent']
+    ship_item = setup_data['ship_item_p']
+
+    # 1000 EGP sale
+    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+        'shipment_item_id': ship_item.id,
+        'shipment_item': ship_item,
+        'quantity': 100,
+        'unit_price': 10.00
+    }])
+    
+    Expense.objects.create(tenant=tenant, shipment=shipment, expense_type='transport', amount=Decimal("100.00"), expense_date="2025-01-01")
+
+    settlement = SettlementService.confirm_settlement(tenant, None, shipment.id)
+    
+    # Net Supplier: 1000 (sale) - 75 (comm) - 100 (exp) = 825.00
+    assert settlement.net_supplier == Decimal("825.00")
+
+@pytest.mark.django_db(transaction=True)
+def test_remaining_qty_cannot_be_negative(setup_data):
+    tenant = setup_data['tenant']
+    ship_item = setup_data['ship_item_p']
+
+    with pytest.raises(ValidationError) as exc:
+        SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+            'shipment_item_id': ship_item.id,
+            'shipment_item': ship_item,
+            'quantity': 2000, 
+            'unit_price': 10.00 
+        }])
+    assert "الكمية المطلوبة أكبر من الرصيد المتبقي" in str(exc.value)
+
+@pytest.mark.django_db(transaction=True)
+def test_race_condition_concurrent_sales(setup_data):
+    tenant = setup_data['tenant']
+    ship_item = setup_data['ship_item_p'] 
+    
+    # We will simulate 2 concurrent requests trying to buy 600 each (Total available 1000)
+    # One must fail validation due to lock & decreasing remaining_qty
+    def attempt_sale(results, index):
+        import django
+        import os
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "hisba_backend.settings")
+        django.setup()
+        try:
+            SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+                'shipment_item_id': ship_item.id,
+                'shipment_item': ship_item,
+                'quantity': 600,
+                'unit_price': 10.00
+            }])
+            results[index] = "Success"
+        except ValidationError:
+            results[index] = "FailedValidation"
+        except Exception as e:
+            results[index] = str(e)
+        finally:
+            connection.close()
+            
+    results = [None, None]
+    t1 = threading.Thread(target=attempt_sale, args=(results, 0))
+    t2 = threading.Thread(target=attempt_sale, args=(results, 1))
+    
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    
+    successes = [r for r in results if r == "Success"]
+    # We guarantee absolutely one success and one failure. 1200 > 1000.
+    assert len(successes) == 1, f"Expected exactly 1 success, got results: {results}"
+
+@pytest.mark.django_db(transaction=True)
+def test_cash_box_integrity(setup_data):
+    tenant = setup_data['tenant']
+    ship_item = setup_data['ship_item_p']
+    
+    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+        'shipment_item_id': ship_item.id,
+        'shipment_item': ship_item,
+        'quantity': 100,
+        'unit_price': 10.00
+    }]) # IN + 1000
+    
+    CashTransaction.objects.create(tenant=tenant, tx_type='in', amount=Decimal("200.00"), reference_type='other', description='تغذية رصيد')
+    CashTransaction.objects.create(tenant=tenant, tx_type='out', amount=Decimal("50.00"), reference_type='other', description='شراء شاي')
+    
+    from django.db.models import Sum
+    ins = CashTransaction.objects.filter(tx_type='in').aggregate(t=Sum('amount'))['t'] or 0
+    outs = CashTransaction.objects.filter(tx_type='out').aggregate(t=Sum('amount'))['t'] or 0
+    
+    # 1000 + 200 - 50 = 1150
+    assert (ins - outs) == Decimal("1150.00")

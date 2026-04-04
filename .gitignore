@@ -1,0 +1,46 @@
+# ==========================================
+# Frontend (React / Node.js)
+# ==========================================
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/.env.local
+frontend/.env.*.local
+frontend/.npm/
+frontend/.vite/
+
+# ==========================================
+# Backend (Django / Python)
+# ==========================================
+backend/venv/
+backend/env/
+backend/__pycache__/
+backend/*/__pycache__/
+backend/*/*/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/db.sqlite3
+backend/db.sqlite3-journal
+
+# Logs and Media
+backend/logs/
+backend/media/
+*.log
+
+# ==========================================
+# IDEs and OS Files
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# Secrets
+# ==========================================
+.env
+backend/.env
+frontend/.env

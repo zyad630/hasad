@@ -16,9 +16,9 @@ export const ProtectedLayout = () => {
         <div className="flex min-h-screen bg-slate-50 font-arabic" dir="rtl">
             {/* Premium Glass Sidebar */}
             <aside className="w-64 glass flex flex-col m-4 shadow-xl animate-fade-in" style={{ height: 'calc(100vh - 2rem)', position: 'sticky', top: '1rem' }}>
-                <div className="flex flex-col items-center justify-center p-6 border-b border-indigo-50/50 mb-4 bg-gradient-to-b from-indigo-50/50 to-transparent rounded-t-2xl">
-                    <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 tracking-tight">نظام الحسبة</h1>
-                    <span className="text-xs font-semibold text-indigo-500 bg-indigo-100/50 px-3 py-1 rounded-full mt-2">
+                <div className="flex flex-col items-center justify-center p-6 border-b border-emerald-50/50 mb-4 bg-gradient-to-b from-emerald-50/50 to-transparent rounded-t-2xl">
+                    <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-green-700 tracking-tighter">نظام حَصاد</h1>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-3 py-1 rounded-full mt-2 uppercase tracking-widest">
                         SaaS Platform PRO
                     </span>
                 </div>
@@ -54,12 +54,12 @@ export const ProtectedLayout = () => {
                 <header className="h-20 glass m-4 mb-0 flex items-center justify-between px-8 shadow-md sticky top-4 z-10">
                     <div className="flex items-center gap-4">
                         <button className="btn btn-secondary text-sm px-3 py-1.5 h-auto">الإشعارات</button>
-                        <div className="p-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl shadow-lg">
+                        <div className="p-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl shadow-lg shadow-emerald-500/20">
                             <UserCircle size={28} />
                         </div>
                         <div>
-                            <div className="text-sm font-semibold text-slate-800">أهلاً بك، {user?.username}</div>
-                            <div className="text-xs text-indigo-500 font-medium mt-0.5">مدير النظام</div>
+                            <div className="text-sm font-bold text-slate-800">أهلاً بك، {user?.username}</div>
+                            <div className="text-xs text-emerald-600 font-bold mt-0.5">مدير النظام</div>
                         </div>
                     </div>
                 </header>
@@ -80,6 +80,6 @@ const NavItem = ({ to, icon, label }: { to: string, icon: React.ReactNode, label
         className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm hover:scale-[1.02] transition-all duration-300 font-medium"
     >
         {icon}
-        <span className="font-medium text-sm">{label}</span>
+        <span className="font-bold text-sm">{label}</span>
     </Link>
 );

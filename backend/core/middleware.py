@@ -13,8 +13,8 @@ class TenantMiddleware(MiddlewareMixin):
         
         host = request.get_host().split(':')[0]
         
-        # Super Admin / Localhost handling
-        if host in ['localhost', '127.0.0.1', 'hisba.saas'] or '.' not in host:
+        # Super Admin / Localhost / Render handling
+        if host in ['localhost', '127.0.0.1', 'hisba.saas', 'hasad-backend.onrender.com'] or '.' not in host:
             request.tenant = None
             set_current_tenant(None)
             return None

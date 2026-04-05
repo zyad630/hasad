@@ -20,8 +20,13 @@ const Sidebar = () => {
   return (
     <aside className="hidden lg:flex flex-col h-screen w-64 sticky top-0 bg-zinc-50/80 backdrop-blur-md py-6 font-cairo font-medium z-50 border-l border-zinc-200/60 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
       <div className="px-6 mb-8">
-        <h1 className="text-xl font-black text-emerald-900">إدارة الحِسبة</h1>
-        <p className="text-xs text-zinc-500 mt-1">النسخة الإحترافية</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+             <span className="material-symbols-outlined text-white">sprout</span>
+          </div>
+          <h1 className="text-2xl font-black text-emerald-900 tracking-tighter">حَصاد</h1>
+        </div>
+        <p className="text-[10px] uppercase tracking-widest text-emerald-600 font-bold mt-2 bg-emerald-50 inline-block px-2 py-0.5 rounded-md">SAAS PLATFORM PRO</p>
       </div>
       
       <nav className="flex-1 space-y-1 overflow-y-auto w-full custom-scrollbar">

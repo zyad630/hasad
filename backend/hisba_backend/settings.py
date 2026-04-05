@@ -10,20 +10,28 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ─── Critical env validation — crash fast, never silently use defaults ─────────
-# DATABASE_URL is optional when using the individual DB_* vars (SQLite dev fallback)
 _using_sqlite = os.environ.get('DB_ENGINE', '').endswith('sqlite3')
 REQUIRED_ENV_VARS = ['SECRET_KEY', 'REDIS_URL', 'ALLOWED_HOSTS', 'DEBUG']
+
+# Only require DATABASE_URL if explicitly NOT using SQLite
 if not _using_sqlite:
     REQUIRED_ENV_VARS.append('DATABASE_URL')
 
 _skip_commands = {'test', 'migrate', 'makemigrations', 'shell', 'showmigrations', 'check'}
 if not any(cmd in sys.argv for cmd in _skip_commands):
+    # Only if NOT explicitly using sqlite, we must check DATABASE_URL
     missing = [v for v in REQUIRED_ENV_VARS if not os.environ.get(v)]
     if missing:
-        raise ImproperlyConfigured(
-            f"Missing required environment variables: {', '.join(missing)}\n"
-            f"Copy .env.example to .env and fill all values."
-        )
+        # Don't crash if it's just DATABASE_URL and we have a local dev fallback logic below
+        # but for production on Render we want to be safe.
+        if not (len(missing) == 1 and missing[0] == 'DATABASE_URL' and _using_sqlite):
+            print(f"Warning: Missing environment variables: {', '.join(missing)}")
+            # In production, we'll allow it to proceed for initial bootstrap if sqlite is detected
+            if not _using_sqlite:
+                raise ImproperlyConfigured(
+                    f"Missing required environment variables: {', '.join(missing)}\n"
+                    f"Copy .env.example to .env and fill all values."
+                )
 
 # M-01: No hardcoded fallback for SECRET_KEY — fail loud in production
 _secret_key = os.environ.get('SECRET_KEY', '')

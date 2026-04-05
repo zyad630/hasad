@@ -14,7 +14,10 @@ class TenantMiddleware(MiddlewareMixin):
         host = request.get_host().split(':')[0]
         
         # Super Admin / Localhost / Render handling
-        if host in ['localhost', '127.0.0.1', 'hisba.saas', 'hasad-backend.onrender.com'] or '.' not in host:
+        allowed_hosts = ['localhost', '127.0.0.1', 'hisba.saas', 'hasad-backend.onrender.com']
+        
+        # Check if current host is an onrender.com host to skip tenant check for management
+        if host in allowed_hosts or host.endswith('onrender.com') or '.' not in host:
             request.tenant = None
             set_current_tenant(None)
             return None

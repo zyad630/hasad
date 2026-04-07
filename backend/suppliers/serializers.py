@@ -12,10 +12,8 @@ class CommissionTypeSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'calc_type', 'default_rate']
         read_only_fields = ['id']
 
-
-# ─── Supplier ────────────────────────────────────────────────────────────────
-
 class SupplierSerializer(serializers.ModelSerializer):
+    commission_type = serializers.CharField(write_only=True, required=False, allow_null=True)
     commission_type_detail = CommissionTypeSerializer(source='commission_type', read_only=True)
     commission_rate = serializers.SerializerMethodField()
     balances = serializers.SerializerMethodField()
@@ -28,6 +26,49 @@ class SupplierSerializer(serializers.ModelSerializer):
             'balance', 'whatsapp_number', 'is_active', 'notes', 'balances',
         ]
         read_only_fields = ['id', 'balance']
+
+    def create(self, validated_data):
+        commission_label = validated_data.pop('commission_type', 'percent')
+        commission_rate = validated_data.pop('commission_rate', 0)
+        request = self.context.get('request')
+        tenant = request.tenant if request else None
+        
+        # Ensure name is provided as required by model
+        if not validated_data.get('name'):
+            raise serializers.ValidationError({"name": "هذا الحقل مطلوب"})
+
+        # Try to resolve a matching CommissionType or create one named "Default"
+        if tenant:
+            c_type, _ = CommissionType.objects.get_or_create(
+                tenant=tenant,
+                calc_type=commission_label if commission_label in ['percent', 'fixed'] else 'percent',
+                default_rate=commission_rate,
+                defaults={'name': f"عمولة {commission_rate} ({commission_label})"}
+            )
+            validated_data['commission_type'] = c_type
+            
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        commission_label = validated_data.pop('commission_type', None)
+        commission_rate = validated_data.pop('commission_rate', None)
+        request = self.context.get('request')
+        tenant = request.tenant if request else None
+
+        if (commission_label or commission_rate is not None) and tenant:
+            # Use existing values if one is missing in the partial update
+            label = commission_label or (instance.commission_type.calc_type if instance.commission_type else 'percent')
+            rate = commission_rate if commission_rate is not None else (instance.commission_type.default_rate if instance.commission_type else 0)
+            
+            c_type, _ = CommissionType.objects.get_or_create(
+                tenant=tenant,
+                calc_type=label if label in ['percent', 'fixed'] else 'percent',
+                default_rate=rate,
+                defaults={'name': f"عمولة {rate} ({label})"}
+            )
+            validated_data['commission_type'] = c_type
+            
+        return super().update(instance, validated_data)
 
     def get_commission_rate(self, obj):
         """Return the rate from the linked CommissionType (auto-populated)."""

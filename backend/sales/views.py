@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -21,17 +21,17 @@ class SaleViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return (
             Sale.objects
-            .filter(tenant=self.request.user.tenant)
+            .filter(tenant=self.request.tenant)
             .select_related('customer', 'created_by')
             .prefetch_related('items__shipment_item__item')
         )
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant, created_by=self.request.user)
+        serializer.save(tenant=self.request.tenant, created_by=self.request.user)
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
-        ctx['tenant'] = self.request.user.tenant
+        ctx['tenant'] = self.request.tenant
         return ctx
 
     @action(detail=True, methods=['get'])
@@ -85,7 +85,7 @@ class SaleViewSet(viewsets.ModelViewSet):
         try:
             from core.audit import log as audit_log
             audit_log(
-                tenant=request.user.tenant,
+                tenant=request.tenant,
                 user=request.user,
                 action='sale_cancelled',
                 entity_type='Sale',
@@ -108,17 +108,17 @@ class ContainerTransactionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return ContainerTransaction.objects.filter(
-            tenant=self.request.user.tenant
+            tenant=self.request.tenant
         ).select_related('customer')
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save(tenant=self.request.tenant)
 
     @action(detail=False, methods=['get'], url_path='balance')
     def customer_balance(self, request):
         from django.db.models import Sum, Case, When, IntegerField
         balances = ContainerTransaction.objects.filter(
-            tenant=request.user.tenant
+            tenant=request.tenant
         ).values('customer__name', 'customer_id', 'container_type').annotate(
             out_total=Sum(
                 Case(When(direction='out', then='quantity'), default=0, output_field=IntegerField())

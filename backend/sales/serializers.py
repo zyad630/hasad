@@ -34,7 +34,7 @@ class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
         from .services import SaleService
         items_data = validated_data.pop('items')
         request = self.context.get('request')
-        tenant = request.user.tenant if request else None
+        tenant = request.tenant if request else None
         user = request.user if request else None
         
         return SaleService.create_sale(

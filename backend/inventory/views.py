@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Category, Item, UnitConversion, Shipment, ShipmentItem
 from .serializers import CategorySerializer, ItemSerializer, ShipmentSerializer, ShipmentItemSerializer
@@ -8,10 +8,10 @@ class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
 
     def get_queryset(self):
-        return Category.objects.filter(tenant=self.request.user.tenant)
+        return Category.objects.filter(tenant=self.request.tenant)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save(tenant=self.request.tenant)
 
 
 class ItemViewSet(viewsets.ModelViewSet):
@@ -22,7 +22,7 @@ class ItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Item.objects.filter(
-            tenant=self.request.user.tenant
+            tenant=self.request.tenant
         ).select_related(
             'category',
         ).prefetch_related(
@@ -30,7 +30,7 @@ class ItemViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save(tenant=self.request.tenant)
 
 
 class ShipmentViewSet(viewsets.ModelViewSet):
@@ -41,7 +41,7 @@ class ShipmentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Shipment.objects.filter(
-            tenant=self.request.user.tenant
+            tenant=self.request.tenant
         ).select_related(
             'supplier',
         ).prefetch_related(
@@ -51,11 +51,11 @@ class ShipmentViewSet(viewsets.ModelViewSet):
         ).order_by('-shipment_date')
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save(tenant=self.request.tenant)
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
-        ctx['tenant'] = self.request.user.tenant
+        ctx['tenant'] = self.request.tenant
         return ctx
 
 
@@ -64,7 +64,7 @@ class ShipmentItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return ShipmentItem.objects.filter(
-            shipment__tenant=self.request.user.tenant
+            shipment__tenant=self.request.tenant
         ).select_related('shipment', 'item')
 
     def perform_create(self, serializer):

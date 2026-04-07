@@ -19,7 +19,7 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['settled_at']
 
     def get_queryset(self):
-        return Settlement.objects.filter(tenant=self.request.user.tenant).select_related('supplier', 'shipment')
+        return Settlement.objects.filter(tenant=self.request.tenant).select_related('supplier', 'shipment')
 
     def get_permissions(self):
         if self.action in ['confirm', 'create']:
@@ -44,7 +44,7 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             shipment = Shipment.objects.get(
                 pk=shipment_id,
-                tenant=request.user.tenant,
+                tenant=request.tenant,
                 status='open'
             )
         except Shipment.DoesNotExist:
@@ -73,7 +73,7 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             shipment = Shipment.objects.get(
                 pk=shipment_id,
-                tenant=request.user.tenant
+                tenant=request.tenant
             )
         except Shipment.DoesNotExist:
             return Response(
@@ -112,10 +112,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     ordering_fields = ['expense_date', 'amount']
 
     def get_queryset(self):
-        return Expense.objects.filter(tenant=self.request.user.tenant)
+        return Expense.objects.filter(tenant=self.request.tenant)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save(tenant=self.request.tenant)
 
 
 class CashTransactionViewSet(viewsets.ModelViewSet):
@@ -126,10 +126,10 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']
 
     def get_queryset(self):
-        return CashTransaction.objects.filter(tenant=self.request.user.tenant)
+        return CashTransaction.objects.filter(tenant=self.request.tenant)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.user.tenant)
+        serializer.save(tenant=self.request.tenant)
 
     @action(detail=False, methods=['post'], url_path='voucher')
     def create_voucher(self, request):
@@ -166,7 +166,7 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
                     
                     if is_check:
                         check_obj = Check.objects.create(
-                            tenant=request.user.tenant,
+                            tenant=request.tenant,
                             check_number=entry.get('check_number'),
                             bank_name=entry.get('bank_name'),
                             due_date=entry.get('due_date'),
@@ -176,7 +176,7 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
                         )
                     
                     tx = CashTransaction.objects.create(
-                        tenant=request.user.tenant,
+                        tenant=request.tenant,
                         tx_type=tx_type,
                         currency_code=currency_code,
                         amount=entry.get('amount'),
@@ -196,11 +196,11 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
         from decimal import Decimal, ROUND_HALF_UP
         from core.models import Currency
         
-        active_currencies = Currency.objects.filter(tenant=request.user.tenant)
+        active_currencies = Currency.objects.filter(tenant=request.tenant)
         results = []
         
         for cur in active_currencies:
-            agg = CashTransaction.objects.filter(tenant=request.user.tenant, currency_code=cur.code).aggregate(
+            agg = CashTransaction.objects.filter(tenant=request.tenant, currency_code=cur.code).aggregate(
                 total_in=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='in')),
                 total_out=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='out')),
             )

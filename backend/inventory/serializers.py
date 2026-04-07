@@ -1,4 +1,4 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from .models import Category, Item, UnitConversion, Shipment, ShipmentItem
 
 class UnitConversionSerializer(serializers.ModelSerializer):
@@ -8,6 +8,26 @@ class UnitConversionSerializer(serializers.ModelSerializer):
 
 class ItemSerializer(serializers.ModelSerializer):
     conversions = UnitConversionSerializer(many=True, read_only=True)
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all(), required=False, allow_null=True)
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        tenant = request.tenant if request else None
+        
+        if not validated_data.get('category') and tenant:
+            cat, _ = Category.objects.get_or_create(
+                tenant=tenant,
+                name="عام",
+                defaults={'name': 'عام'}
+            )
+            validated_data['category'] = cat
+            
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Allow partial update without breaking the category
+        return super().update(instance, validated_data)
+
     class Meta:
         model = Item
         fields = ['id', 'category', 'name', 'base_unit', 'waste_percentage', 'is_active', 'conversions']

@@ -1,8 +1,12 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { RootState } from '../store'
 
+const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const defaultBaseUrl = isDevelopment ? 'http://localhost:8000/api/' : 'https://your-backend-url.onrender.com/api/';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || defaultBaseUrl;
+
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: 'http://localhost:8000/api/',
+  baseUrl: BASE_URL,
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.token
     if (token) {

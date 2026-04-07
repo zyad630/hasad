@@ -14,14 +14,14 @@ try:
     from core.models import CustomUser, Tenant
 
     def create_admin():
-        username = 'admin'
-        password = '123'
+        username = 'super_hassad'
+        password = '12345678'
         
         # 1. Create a default Tenant if it doesn't exist
         tenant, created = Tenant.objects.get_or_create(
             subdomain='default',
             defaults={
-                'name': 'سوق حصاد المركزي',
+                'name': 'النظام الآلي المركزي',
                 'status': 'active'
             }
         )
@@ -35,16 +35,15 @@ try:
             user = CustomUser.objects.create_superuser(
                 username=username, 
                 password=password, 
-                role='owner', # Or 'super_admin'
-                tenant=tenant
+                role='super_admin', # Strict role for Super Admin Dashboard
+                tenant=None # Super Admin has no specific tenant
             )
             print("Superuser created successfully.")
         else:
-            # Ensure the existing admin has a tenant assigned
-            if not user.tenant:
-                user.tenant = tenant
+            # Ensure the existing admin has the correct role
+            if user.role != 'super_admin':
+                user.role = 'super_admin'
                 user.save()
-                print(f"Tenant '{tenant.name}' assigned to existing admin.")
             print(f"Superuser {username} already exists.")
 
     if __name__ == '__main__':

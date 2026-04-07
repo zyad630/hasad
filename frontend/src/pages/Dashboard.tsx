@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/baseApi';
 import { VegetableLoader } from '../components/ui/VegetableLoader';
 import { useGetShipmentsQuery } from './shipments/Shipments';
@@ -18,14 +19,21 @@ const reportsApi = api.injectEndpoints({
 export const { useGetDashboardQuery, useGetAgingReportQuery } = reportsApi;
 
 export default function Dashboard() {
-    const { data: dashboard, isLoading: dashLoading } = useGetDashboardQuery({});
-    const { data: agingData, isLoading: agingLoading } = useGetAgingReportQuery({});
-    const { data: shipmentsData, isLoading: shipLoading } = useGetShipmentsQuery({});
-  
-    if (dashLoading || agingLoading || shipLoading) return <VegetableLoader text="جاري التحميل..." size="lg" fullScreen={false} />;
+  const { data: dashboard, isLoading: dashLoading, refetch: dashRefetch } = useGetDashboardQuery({});
+  const { data: agingData, isLoading: agingLoading, refetch: agingRefetch } = useGetAgingReportQuery({});
+  const { data: shipmentsData, isLoading: shipLoading, refetch: shipRefetch } = useGetShipmentsQuery({});
+  const navigate = useNavigate();
+
+  if (dashLoading || agingLoading || shipLoading) return <VegetableLoader text="جاري التحميل..." size="lg" fullScreen={false} />;
 
   const shipments = shipmentsData?.results || (Array.isArray(shipmentsData) ? shipmentsData : []);
   const recentShipments = shipments.slice(0, 5);
+
+  const handleRefresh = () => {
+    dashRefetch();
+    agingRefetch();
+    shipRefetch();
+  };
 
   return (
     <div>
@@ -36,9 +44,15 @@ export default function Dashboard() {
           <p>متابعة المبيعات، المشتريات، والسيولة النقدية في الوقت الفعلي.</p>
         </div>
         <div className="title-actions">
-          <button className="btn btn-ghost" title="تحديث البيانات"><i className="fa-solid fa-arrows-rotate"></i></button>
-          <button className="btn btn-outline-primary"><i className="fa-solid fa-chart-line"></i> تقرير الأداء</button>
-          <button className="btn btn-primary"><i className="fa-solid fa-plus"></i> حركة جديدة</button>
+          <button className="btn btn-ghost" title="تحديث البيانات" onClick={handleRefresh}>
+            <i className="fa-solid fa-arrows-rotate"></i>
+          </button>
+          <button className="btn btn-outline-primary" onClick={() => navigate('/reports')}>
+            <i className="fa-solid fa-chart-line"></i> تقرير الأداء
+          </button>
+          <button className="btn btn-primary" onClick={() => navigate('/pos')}>
+            <i className="fa-solid fa-plus"></i> حركة جديدة
+          </button>
         </div>
       </div>
 

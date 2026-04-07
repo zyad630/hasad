@@ -11,22 +11,40 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'hisba_backend.settings')
 
 try:
     django.setup()
-    from core.models import CustomUser
+    from core.models import CustomUser, Tenant
 
     def create_admin():
         username = 'admin'
         password = '123'
-        if not CustomUser.objects.filter(username=username).exists():
+        
+        # 1. Create a default Tenant if it doesn't exist
+        tenant, created = Tenant.objects.get_or_create(
+            subdomain='default',
+            defaults={
+                'name': 'سوق حصاد المركزي',
+                'status': 'active'
+            }
+        )
+        if created:
+            print(f"Default tenant '{tenant.name}' created.")
+
+        # 2. Create/Update admin user
+        user = CustomUser.all_objects.filter(username=username).first()
+        if not user:
             print(f"Creating superuser {username}...")
-            # Note: CustomUser uses 'admin' as a role if applicable, 
-            # we make sure it's created with correct superuser flags
-            CustomUser.objects.create_superuser(
+            user = CustomUser.objects.create_superuser(
                 username=username, 
                 password=password, 
-                role='admin'
+                role='owner', # Or 'super_admin'
+                tenant=tenant
             )
             print("Superuser created successfully.")
         else:
+            # Ensure the existing admin has a tenant assigned
+            if not user.tenant:
+                user.tenant = tenant
+                user.save()
+                print(f"Tenant '{tenant.name}' assigned to existing admin.")
             print(f"Superuser {username} already exists.")
 
     if __name__ == '__main__':

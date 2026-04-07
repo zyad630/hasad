@@ -4,13 +4,15 @@ import { logout } from '../store/authSlice';
 
 const navItems = [
   { path: '/dashboard', label: 'لوحة التحكم', icon: 'dashboard' },
+  { path: '/market/floor', label: 'ساحة الحركات', icon: 'analytics' },
   { path: '/shipments', label: 'الإرساليات', icon: 'inventory_2' },
   { path: '/sales', label: 'البيع السريع', icon: 'point_of_sale' },
-  { path: '/suppliers', label: 'الموردين', icon: 'person_apron' },
+  { path: '/suppliers', label: 'المزارعين', icon: 'person_apron' },
+  { path: '/customers', label: 'الزبائن / تجار', icon: 'groups' },
   { path: '/inventory', label: 'الأصناف والفوارغ', icon: 'package_2' },
   { path: '/finance', label: 'التصفية', icon: 'rebase_edit' },
   { path: '/expenses', label: 'المصاريف', icon: 'payments' },
-  { path: '/reports', label: 'التقارير', icon: 'analytics' },
+  { path: '/currencies', label: 'إدارة العملات', icon: 'currency_exchange' },
   { path: '/settings', label: 'الإعدادات', icon: 'settings' },
 ];
 

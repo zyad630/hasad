@@ -2,7 +2,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
 import type { RootState } from '../store'
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: 'https://hasad-backend.onrender.com/api/',
+  baseUrl: 'http://localhost:8000/api/',
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.token
     if (token) {
@@ -32,6 +32,16 @@ const customBaseQuery = async (args: any, api: any, extraOptions: any) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: customBaseQuery,
-  tagTypes: ['Shipments', 'Suppliers', 'Customers', 'Containers', 'Expenses', 'Sales', 'Settlements', 'Cash', 'Items', 'Tenants', 'SuperAdmin'],
-  endpoints: () => ({}),
+  tagTypes: ['Shipments', 'Suppliers', 'Customers', 'Containers', 'Expenses', 'Sales', 'Settlements', 'Cash', 'Items', 'Tenants', 'SuperAdmin', 'Currencies', 'Movements'],
+  endpoints: (build) => ({
+    sendWhatsAppAlert: build.mutation({
+      query: (body) => ({
+        url: 'integrations/whatsapp/send/',
+        method: 'POST',
+        body,
+      }),
+    }),
+  }),
 });
+
+export const { useSendWhatsAppAlertMutation } = api as any;

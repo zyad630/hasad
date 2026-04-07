@@ -23,8 +23,13 @@ def setup_data(db, tenant):
     category = Category.objects.create(tenant=tenant, name="Veggies")
     item = Item.objects.create(tenant=tenant, category=category, name="Tomato", base_unit="kg")
     
-    supplier_percent = Supplier.objects.create(tenant=tenant, name="Sup1", deal_type="commission", commission_type="percent", commission_rate=Decimal("7.5"))
-    supplier_fixed = Supplier.objects.create(tenant=tenant, name="Sup2", deal_type="commission", commission_type="fixed", commission_rate=Decimal("50.0"))
+    from suppliers.models import CommissionType
+    
+    ct_percent = CommissionType.objects.create(tenant=tenant, name="Percent", calc_type="percent", default_rate=Decimal("7.5"))
+    ct_fixed = CommissionType.objects.create(tenant=tenant, name="Fixed", calc_type="fixed", default_rate=Decimal("50.0"))
+    
+    supplier_percent = Supplier.objects.create(tenant=tenant, name="Sup1", deal_type="commission", commission_type=ct_percent)
+    supplier_fixed = Supplier.objects.create(tenant=tenant, name="Sup2", deal_type="commission", commission_type=ct_fixed)
     
     customer = Customer.objects.create(tenant=tenant, name="Cust1")
     
@@ -53,12 +58,12 @@ def test_commission_percentage_exactness(setup_data):
     ship_item = setup_data['ship_item_p']
 
     # 1000 EGP sale
-    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+    SaleService.create_sale(tenant, None, [{
         'shipment_item_id': ship_item.id,
         'shipment_item': ship_item,
         'quantity': 100,
         'unit_price': 10.00
-    }])
+    }], 'cash', customer_id=setup_data['customer'].id)
 
     settlement = SettlementService.confirm_settlement(tenant, None, shipment.id)
     
@@ -74,12 +79,12 @@ def test_commission_fixed_amount(setup_data):
     ship_item = setup_data['ship_item_f']
 
     # 1000 EGP sale
-    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+    SaleService.create_sale(tenant, None, [{
         'shipment_item_id': ship_item.id,
         'shipment_item': ship_item,
         'quantity': 100,
         'unit_price': 10.00
-    }])
+    }], 'cash', customer_id=setup_data['customer'].id)
 
     settlement = SettlementService.confirm_settlement(tenant, None, shipment.id)
     
@@ -92,12 +97,12 @@ def test_settlement_net_calculation_with_expenses(setup_data):
     ship_item = setup_data['ship_item_p']
 
     # 1000 EGP sale
-    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+    SaleService.create_sale(tenant, None, [{
         'shipment_item_id': ship_item.id,
         'shipment_item': ship_item,
         'quantity': 100,
         'unit_price': 10.00
-    }])
+    }], 'cash', customer_id=setup_data['customer'].id)
     
     Expense.objects.create(tenant=tenant, shipment=shipment, expense_type='transport', amount=Decimal("100.00"), expense_date="2025-01-01")
 
@@ -112,12 +117,12 @@ def test_remaining_qty_cannot_be_negative(setup_data):
     ship_item = setup_data['ship_item_p']
 
     with pytest.raises(ValidationError) as exc:
-        SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+        SaleService.create_sale(tenant, None, [{
             'shipment_item_id': ship_item.id,
             'shipment_item': ship_item,
             'quantity': 2000, 
             'unit_price': 10.00 
-        }])
+        }], 'cash', customer_id=setup_data['customer'].id)
     assert "الكمية المطلوبة أكبر من الرصيد المتبقي" in str(exc.value)
 
 @pytest.mark.django_db(transaction=True)
@@ -133,12 +138,12 @@ def test_race_condition_concurrent_sales(setup_data):
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "hisba_backend.settings")
         django.setup()
         try:
-            SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+            SaleService.create_sale(tenant, None, [{
                 'shipment_item_id': ship_item.id,
                 'shipment_item': ship_item,
                 'quantity': 600,
                 'unit_price': 10.00
-            }])
+            }], 'cash', customer_id=setup_data['customer'].id)
             results[index] = "Success"
         except ValidationError:
             results[index] = "FailedValidation"
@@ -165,12 +170,12 @@ def test_cash_box_integrity(setup_data):
     tenant = setup_data['tenant']
     ship_item = setup_data['ship_item_p']
     
-    SaleService.create_sale(tenant, None, setup_data['customer'], 'cash', [{
+    SaleService.create_sale(tenant, None, [{
         'shipment_item_id': ship_item.id,
         'shipment_item': ship_item,
         'quantity': 100,
         'unit_price': 10.00
-    }]) # IN + 1000
+    }], 'cash', customer_id=setup_data['customer'].id) # IN + 1000
     
     CashTransaction.objects.create(tenant=tenant, tx_type='in', amount=Decimal("200.00"), reference_type='other', description='تغذية رصيد')
     CashTransaction.objects.create(tenant=tenant, tx_type='out', amount=Decimal("50.00"), reference_type='other', description='شراء شاي')

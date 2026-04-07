@@ -9,19 +9,27 @@ from finance.services import LedgerService
 class SaleService:
     @staticmethod
     @transaction.atomic
-    def create_sale(tenant, user, items_data, payment_type, customer_id):
+    def create_sale(tenant, user, items_data, payment_type, customer=None, customer_id=None):
+        """Accept either customer object or customer_id for flexibility."""
+        if customer is not None and customer_id is None:
+            customer_id = customer.id if hasattr(customer, 'id') else customer
         validated = []
 
         for item_data in items_data:
+            # Support both dict key styles (from serializer or direct)
+            si_id = item_data.get('shipment_item_id') or (
+                item_data['shipment_item'].pk if hasattr(item_data.get('shipment_item'), 'pk')
+                else item_data.get('shipment_item')
+            )
             # Lock the row — no other transaction can read/write until this one commits
             try:
                 shipment_item = ShipmentItem.objects.select_for_update(nowait=False).get(
-                    id=item_data['shipment_item_id'],
+                    id=si_id,
                     shipment__tenant=tenant,
-                    shipment__is_closed=False  # assuming this is the open status flag
+                    shipment__status='open',
                 )
             except ShipmentItem.DoesNotExist:
-                raise ValidationError("Shipment item not found or is closed.")
+                raise ValidationError("بند الإرسالية غير موجود أو الإرسالية مغلقة.")
 
             qty   = Decimal(str(item_data['quantity']))
             price = Decimal(str(item_data['unit_price']))
@@ -64,6 +72,13 @@ class SaleService:
         ids = [s.pk for s, _, _ in validated if hasattr(s, 'remaining_qty')]
         if ids and ShipmentItem.objects.filter(pk__in=ids, remaining_qty__lt=0).exists():
             raise IntegrityError("CRITICAL: remaining_qty went negative — transaction rolled back")
+
+        # Update legacy credit_balance if payment is credit
+        if payment_type == 'credit' and customer_id:
+            from suppliers.models import Customer
+            Customer.objects.filter(pk=customer_id).update(
+                credit_balance=F('credit_balance') + sale.total_amount
+            )
 
         # Create Ledger Entries
         LedgerService.record_sale(sale)

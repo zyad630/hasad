@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from '../../components/ui/Toast';
 import { api } from '../../api/baseApi';
 import { Plus, Power } from 'lucide-react';
 import { TableSkeleton } from '../../components/Skeleton';
@@ -31,6 +32,7 @@ const tenantApi = api.injectEndpoints({
 const { useGetTenantsQuery, useCreateTenantMutation, useUpdateTenantStatusMutation } = tenantApi;
 
 const TenantsList = () => {
+  const { showToast } = useToast();
   const { data: tenants, isLoading } = useGetTenantsQuery({});
   const [createTenant] = useCreateTenantMutation();
   const [updateStatus] = useUpdateTenantStatusMutation();
@@ -47,7 +49,7 @@ const TenantsList = () => {
       setIsModalOpen(false);
       setFormData({tenant_name: '', subdomain: '', owner_username: '', owner_password: ''});
     } catch(err) {
-      alert('خطأ في التسجيل، تأكد من البيانات');
+      showToast('خطأ في التسجيل، تأكد من البيانات', 'error');
     }
   };
 

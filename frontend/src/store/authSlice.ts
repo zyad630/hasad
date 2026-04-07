@@ -6,6 +6,8 @@ interface User {
   username: string
   role: string
   permissions_list: string[]
+  is_staff?: boolean
+  tenant_name?: string
 }
 
 interface AuthState {

@@ -1,4 +1,5 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
+import { useToast } from '../../components/ui/Toast';
 import { api } from '../../api/baseApi';
 import { TableSkeleton } from '../../components/Skeleton';
 import { useGetSuppliersQuery } from '../suppliers/Suppliers';
@@ -24,6 +25,7 @@ const shipmentApi = api.injectEndpoints({
 export const { useGetShipmentsQuery, useCreateShipmentMutation } = shipmentApi;
 
 const Shipments = () => {
+  const { showToast } = useToast();
   const { data: shipmentsData, isLoading } = useGetShipmentsQuery({});
   const { data: suppliersData } = useGetSuppliersQuery({});
   const { data: itemsData } = useGetItemsQuery({});
@@ -46,7 +48,7 @@ const Shipments = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (shipmentItems.length === 0 || shipmentItems[0].item === '') {
-      alert('يجب إضافة صنف واحد على الأقل');
+      showToast('يجب إضافة صنف واحد على الأقل', 'warning');
       return;
     }
     try {
@@ -58,7 +60,7 @@ const Shipments = () => {
       setFormData({supplier: '', shipment_date: new Date().toISOString().split('T')[0], deal_type: 'commission', notes: ''});
       setShipmentItems([{ item: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
     } catch(err) {
-      alert('خطأ في إدخال الإرسالية.');
+      showToast('خطأ في إدخال الإرسالية.', 'error');
     }
   };
 
@@ -101,7 +103,7 @@ const Shipments = () => {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-primary">person</span>
-                  المورد (البائع)
+                  المزارع (البائع)
                 </h3>
               </div>
               <div className="space-y-4">
@@ -119,7 +121,7 @@ const Shipments = () => {
                     }}
                     className="w-full h-14 pe-12 ps-4 appearance-none bg-surface-container-high border-none rounded-xl focus:ring-2 focus:ring-primary text-lg transition-all text-on-surface"
                   >
-                    <option value="" disabled>ابحث واختر المورد...</option>
+                    <option value="" disabled>ابحث واختر المزارع...</option>
                     {suppliers?.map((s:any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                   <span className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400">
@@ -333,7 +335,7 @@ const Shipments = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h2 className="text-3xl font-bold text-on-surface">إدارة الإرساليات (الوارد)</h2>
-          <p className="text-on-surface-variant mt-2">استقبال وتتبع شحنات ومحاصيل الموردين، وتحويلها للبيع.</p>
+          <p className="text-on-surface-variant mt-2">استقبال وتتبع شحنات ومحاصيل المزارعين، وتحويلها للبيع.</p>
         </div>
         <button 
           className="flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-br from-primary to-primary-container text-white rounded-xl shadow-xl shadow-primary/20 hover:scale-105 transition-transform active:scale-95 font-bold text-lg h-[56px]" 
@@ -350,7 +352,7 @@ const Shipments = () => {
              <div className="relative w-full md:w-80">
                <input 
                  className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary text-sm outline-none transition-shadow" 
-                 placeholder="بحث برقم الإرسالية أو اسم المورد..." 
+                 placeholder="بحث برقم الإرسالية أو اسم المزارع..." 
                  type="text"
                />
                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">search</span>
@@ -364,7 +366,7 @@ const Shipments = () => {
               <tr className="bg-surface-container-low/30 text-on-surface-variant border-b border-zinc-100">
                 <th className="px-6 py-4 font-bold text-sm">البوليصة</th>
                 <th className="px-6 py-4 font-bold text-sm">التاريخ</th>
-                <th className="px-6 py-4 font-bold text-sm">المورد</th>
+                <th className="px-6 py-4 font-bold text-sm">المزارع</th>
                 <th className="px-6 py-4 font-bold text-sm text-center">نوع التعامل</th>
                 <th className="px-6 py-4 font-bold text-sm text-center">عدد الأصناف</th>
                 <th className="px-6 py-4 font-bold text-sm text-center">الوضع الحالي</th>

@@ -1,85 +1,135 @@
-import { Outlet, Navigate, Link } from 'react-router-dom';
+import React from 'react';
+import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../store';
 import { logout } from '../store/authSlice';
-import { LogOut, Home, Users, Package, Truck, UserCircle, ShoppingCart, Calculator, Wallet } from 'lucide-react';
 
 export const ProtectedLayout = () => {
     const dispatch = useDispatch();
+    const location = useLocation();
     const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
 
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
+    const handleLogout = () => {
+        dispatch(logout());
+        localStorage.clear();
+        window.location.href = '/login';
+    };
+
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+    const getNavClass = (path: string, exact: boolean = false, isDanger: boolean = false, isAi: boolean = false) => {
+        const isActive = exact ? location.pathname === path : location.pathname.startsWith(path);
+        let baseClass = 'nav-item';
+        if (isDanger) baseClass += ' nav-danger';
+        if (isAi) baseClass += ' nav-ai';
+        if (isActive) baseClass += ' active';
+        return baseClass;
+    };
 
     return (
-        <div className="flex min-h-screen bg-slate-50 font-arabic" dir="rtl">
-            {/* Premium Glass Sidebar */}
-            <aside className="w-64 glass flex flex-col m-4 shadow-xl animate-fade-in" style={{ height: 'calc(100vh - 2rem)', position: 'sticky', top: '1rem' }}>
-                <div className="flex flex-col items-center justify-center p-6 border-b border-emerald-50/50 mb-4 bg-gradient-to-b from-emerald-50/50 to-transparent rounded-t-2xl">
-                    <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-green-700 tracking-tighter">نظام حَصاد</h1>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-3 py-1 rounded-full mt-2 uppercase tracking-widest">
-                        SaaS Platform PRO
-                    </span>
+        <div className="app-container" id="app-shell">
+            {/* ── SIDEBAR ── */}
+            <aside className="sidebar" id="sidebar">
+                <div className="logo-container">
+                    <div className="logo-icon"><i className="fa-solid fa-leaf"></i></div>
+                    <div>
+                        <div className="logo-text">حَصاد</div>
+                        <div className="logo-sub">إدارة محلات الخضار</div>
+                    </div>
                 </div>
-                
-                <nav className="flex-1 space-y-1.5 px-3 overflow-y-auto">
-                    <NavItem to="/dashboard" icon={<Home size={18} />} label="لوحة التحكم" />
-                    <NavItem to="/pos" icon={<ShoppingCart size={18} />} label="نقطة البيع (POS)" />
-                    <NavItem to="/suppliers" icon={<Users size={18} />} label="الموردين" />
-                    <NavItem to="/inventory" icon={<Package size={18} />} label="الأصناف" />
-                    <NavItem to="/shipments" icon={<Truck size={18} />} label="الإرساليات" />
+
+                <nav className="sidebar-nav" id="sidebar-nav">
+                    <div className="nav-section-label">الرئيسية</div>
+                    <Link to="/dashboard" className={getNavClass('/dashboard', true)}>
+                        <i className="fa-solid fa-chart-pie"></i><span>لوحة التحكم</span>
+                    </Link>
+
+                    <div className="nav-section-label">العمليات</div>
+                    <Link to="/pos" className={getNavClass('/pos')}>
+                         <i className="fa-solid fa-cash-register"></i><span>نقطة البيع</span>
+                    </Link>
+                    <Link to="/market/floor" className={getNavClass('/market/floor')}>
+                        <i className="fa-solid fa-book-open"></i><span>دفتر الحركات اليومية</span>
+                    </Link>
+                    <Link to="/shipments" className={getNavClass('/shipments')}>
+                        <i className="fa-solid fa-truck"></i><span>الإرساليات والمزارعين</span>
+                    </Link>
+
+                    <div className="nav-section-label">المحاسبة والعملاء</div>
+                    <Link to="/suppliers" className={getNavClass('/suppliers')}>
+                        <i className="fa-solid fa-users"></i><span>العملاء والمزارعين</span>
+                    </Link>
+                    <Link to="/customers" className={getNavClass('/customers')}>
+                        <i className="fa-solid fa-user-tag"></i><span>تجار وزبائن</span>
+                    </Link>
+                    <Link to="/finance/cash" className={getNavClass('/finance')}>
+                        <i className="fa-solid fa-file-invoice-dollar"></i><span>السندات والمالية</span>
+                    </Link>
+
+                    <div className="nav-section-label">المخزون والجرد</div>
+                    <Link to="/finance/containers" className={getNavClass('/finance/containers')}>
+                        <i className="fa-solid fa-box-open"></i><span>أرصدة الفوارغ</span>
+                    </Link>
+                    <Link to="/inventory" className={getNavClass('/inventory')}>
+                        <i className="fa-solid fa-boxes-stacked"></i><span>المخزون والجرد</span>
+                    </Link>
+
+                    <div className="nav-section-label">التحليل</div>
+                    <Link to="/reports/customer-balances" className={getNavClass('/reports')}>
+                        <i className="fa-solid fa-chart-line"></i><span>التقارير</span>
+                    </Link>
                     
-                    <div style={{ marginTop: '2rem', marginBottom: '0.75rem', padding: '0 1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-color)', opacity: 0.8 }}>الحسابات</div>
-                    
-                    <NavItem to="/finance/cash" icon={<Wallet size={18} />} label="الخزينة" />
-                    <NavItem to="/finance/expenses" icon={<Truck size={18} />} label="المصروفات" />
-                    <NavItem to="/finance/containers" icon={<Package size={18} />} label="الفوارغ" />
-                    <NavItem to="/finance/settlements" icon={<Calculator size={18} />} label="التصفيات" />
+                    {user?.is_staff && (
+                        <Link to="/super-admin" className={getNavClass('/super-admin', false, true)}>
+                            <i className="fa-solid fa-shield-halved"></i><span>إدارة المنصة (SaaS Admin)</span>
+                        </Link>
+                    )}
                 </nav>
 
-                <div className="p-4 border-t border-slate-100/50">
-                    <button 
-                        onClick={() => dispatch(logout())} 
-                        className="w-full flex justify-start items-center p-2 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-300 gap-2"
-                    >
-                        <LogOut size={18} />
-                        تسجيل الخروج
-                    </button>
+                <div className="sidebar-footer">
+                    <div className="user-info">
+                        <div className="user-avatar" id="user-avatar">{user?.username?.charAt(0).toUpperCase() || 'م'}</div>
+                        <div style={{display:'flex', flexDirection:'column', flex:1}}>
+                            <div className="user-name" id="user-name">{user?.username}</div>
+                            <div className="user-role" id="user-role">{user?.tenant_name || 'مدير النظام'}</div>
+                        </div>
+                        <button className="logout-btn" id="logout-btn" title="تسجيل الخروج" onClick={handleLogout}>
+                            <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                        </button>
+                    </div>
                 </div>
             </aside>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-h-screen">
-                <header className="h-20 glass m-4 mb-0 flex items-center justify-between px-8 shadow-md sticky top-4 z-10">
-                    <div className="flex items-center gap-4">
-                        <button className="btn btn-secondary text-sm px-3 py-1.5 h-auto">الإشعارات</button>
-                        <div className="p-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl shadow-lg shadow-emerald-500/20">
-                            <UserCircle size={28} />
+            {/* ── MAIN CONTENT ── */}
+            <main className="main-content">
+                <header className="top-header">
+                    <div className="header-left">
+                        <button className="menu-toggle" id="menu-toggle">
+                            <i className="fa-solid fa-bars"></i>
+                        </button>
+                        <div className="search-bar" id="global-search-wrap">
+                            <i className="fa-solid fa-search"></i>
+                            <input type="text" id="global-search" placeholder="بحث سريع..." />
                         </div>
-                        <div>
-                            <div className="text-sm font-bold text-slate-800">أهلاً بك، {user?.username}</div>
-                            <div className="text-xs text-emerald-600 font-bold mt-0.5">مدير النظام</div>
-                        </div>
+                        <span className="today-date" id="today-date">
+                            {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        </span>
+                    </div>
+                    <div className="header-right">
+                        <button className="header-btn" id="notif-btn" title="الإشعارات">
+                            <i className="fa-regular fa-bell"></i>
+                            <span className="notif-badge" id="notif-badge" style={{display:'none'}}>0</span>
+                        </button>
+                        <button className="header-btn btn-primary" id="quick-add-btn" title="إضافة حركة سريعة" style={{width:'auto', padding:'0 14px', borderRadius:'var(--radius-md)', fontSize:'13px', fontWeight:700, gap:'6px'}}>
+                            <i className="fa-solid fa-plus"></i> جديد
+                        </button>
                     </div>
                 </header>
 
-                <main className="flex-1 p-6 overflow-x-hidden">
-                    <div className="min-h-full animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                        <Outlet />
-                    </div>
-                </main>
-            </div>
+                <div className="view-section active flex-1 overflow-y-auto" style={{ padding: '26px' }}>
+                    <Outlet />
+                </div>
+            </main>
         </div>
     );
 };
-
-const NavItem = ({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) => (
-    <Link 
-        to={to} 
-        className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-white hover:text-indigo-600 hover:shadow-sm hover:scale-[1.02] transition-all duration-300 font-medium"
-    >
-        {icon}
-        <span className="font-bold text-sm">{label}</span>
-    </Link>
-);

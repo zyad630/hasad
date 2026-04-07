@@ -1,11 +1,14 @@
 import React from 'react';
 import { Provider } from 'react-redux';
 import { store } from '../store';
+import { ToastProvider } from '../components/ui/Toast';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <Provider store={store}>
-      {children}
+      <ToastProvider>
+        {children}
+      </ToastProvider>
     </Provider>
   );
 }

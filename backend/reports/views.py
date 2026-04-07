@@ -1,4 +1,4 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 from django.db.models import Sum, Count, Q, Max, ExpressionWrapper, DurationField
 from django.db.models.functions import TruncDate, Now
 from django.core.cache import cache
@@ -14,42 +14,59 @@ from inventory.models import Shipment
 # ─── Preserved original views (URLs depend on these) ──────────────────────────
 
 class DashboardView(APIView):
-    """Fast dashboard KPIs — all in one DB round-trip per section."""
+    """Multi-currency dashboard KPIs."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         tenant = request.user.tenant
-        cache_key = f'dashboard_{tenant.id}'
-        cached = cache.get(cache_key)
-        if cached:
-            return Response(cached)
-
-        sales_agg = Sale.objects.filter(
-            tenant=tenant, is_cancelled=False
-        ).aggregate(
-            total_revenue=Sum('total_amount'),
-            total_cash=Sum('total_amount', filter=Q(payment_type='cash')),
-            total_credit=Sum('total_amount', filter=Q(payment_type='credit')),
-            total_count=Count('id'),
+        
+        # Sales by currency with details
+        from core.models import Currency
+        sales_data = list(
+            Sale.objects.filter(tenant=tenant, is_cancelled=False)
+            .values('currency_code')
+            .annotate(
+                total=Sum('total_amount'),
+                count=Count('id')
+            )
         )
+        
+        for item in sales_data:
+            cur = Currency.objects.filter(tenant=tenant, code=item['currency_code']).first()
+            item['currency_symbol'] = cur.symbol if cur else item['currency_code']
+            item['currency_name'] = cur.name if cur else item['currency_code']
 
+        # Pending items
         open_shipments = Shipment.objects.filter(tenant=tenant, status='open').count()
-        supplier_count = Supplier.objects.filter(tenant=tenant, is_active=True).count()
-        customer_credit = Customer.objects.filter(
-            tenant=tenant, credit_balance__gt=0
-        ).aggregate(total=Sum('credit_balance'))['total'] or Decimal('0')
+        
+        # Receivables (summary from LedgerEntry)
+        from finance.models import LedgerEntry
+        
+        active_currencies = Currency.objects.filter(tenant=tenant)
+        receivables = []
+        
+        for cur in active_currencies:
+            balance = LedgerEntry.objects.filter(
+                tenant=tenant,
+                account_type='customer',
+                currency_code=cur.code
+            ).aggregate(bal=Sum('amount'))['bal'] or Decimal('0')
+            
+            if balance != 0:
+                receivables.append({
+                    'currency_code': cur.code,
+                    'currency_symbol': cur.symbol,
+                    'currency_name': cur.name,
+                    'amount': str(balance)
+                })
 
         data = {
-            'total_revenue':   str(sales_agg['total_revenue']  or '0.00'),
-            'total_cash':      str(sales_agg['total_cash']     or '0.00'),
-            'total_credit':    str(sales_agg['total_credit']   or '0.00'),
-            'total_invoices':  sales_agg['total_count'] or 0,
-            'open_shipments':  open_shipments,
-            'active_suppliers': supplier_count,
-            'total_receivables': str(customer_credit),
+            'sales_by_currency': sales_data,
+            'open_shipments': open_shipments,
+            'receivables': receivables,
+            'active_suppliers': Supplier.objects.filter(tenant=tenant, is_active=True).count(),
         }
 
-        cache.set(cache_key, data, timeout=300)
         return Response(data)
 
 

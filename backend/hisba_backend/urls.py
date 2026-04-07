@@ -6,15 +6,22 @@ from rest_framework.routers import DefaultRouter
 from core.views import LoginView, MeView, ChangePasswordView, TenantViewSet, RegisterTenantView, UserViewSet
 from core import api_superadmin
 # Suppliers
-from suppliers.views import SupplierViewSet, CustomerViewSet
+from suppliers.views import CommissionTypeViewSet, SupplierViewSet, CustomerViewSet
 # Inventory
 from inventory.views import CategoryViewSet, ItemViewSet, ShipmentViewSet
 # Sales
 from sales.views import SaleViewSet, ContainerTransactionViewSet
 # Finance
 from finance.views import SettlementViewSet, ExpenseViewSet, CashTransactionViewSet
-# Integrations
-from integrations.views import WhatsAppMessageViewSet, AIAlertViewSet
+# Market
+from market.views import DailyMovementViewSet
+# Modules 3-7
+from market.extra_views import (
+    ItemUnitViewSet, SalesOrderViewSet, PurchaseOrderViewSet,
+    SaleReturnViewSet, PurchaseReturnViewSet,
+    EmployeeViewSet, PayrollRunViewSet,
+    AdvancedCheckViewSet,
+)
 # Reports
 from reports.views import DashboardView, SalesReportView, AgingReportView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -22,18 +29,38 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'tenants', TenantViewSet, basename='tenant')
+# Module 1
+router.register(r'commission-types', CommissionTypeViewSet, basename='commission_type')
+# Suppliers & Customers
 router.register(r'suppliers', SupplierViewSet, basename='supplier')
 router.register(r'customers', CustomerViewSet, basename='customer')
+# Inventory
 router.register(r'categories', CategoryViewSet, basename='category')
 router.register(r'items', ItemViewSet, basename='item')
+# Module 3 — Multi-Unit
+router.register(r'item-units', ItemUnitViewSet, basename='item_unit')
 router.register(r'shipments', ShipmentViewSet, basename='shipment')
+# Sales
 router.register(r'sales', SaleViewSet, basename='sale')
 router.register(r'containers', ContainerTransactionViewSet, basename='container')
+# Module 4 — Orders
+router.register(r'sales-orders', SalesOrderViewSet, basename='sales_order')
+router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchase_order')
+# Module 5 — Returns
+router.register(r'sale-returns', SaleReturnViewSet, basename='sale_return')
+router.register(r'purchase-returns', PurchaseReturnViewSet, basename='purchase_return')
+# Finance
 router.register(r'settlements', SettlementViewSet, basename='settlement')
 router.register(r'expenses', ExpenseViewSet, basename='expense')
 router.register(r'cash-transactions', CashTransactionViewSet, basename='cash_transaction')
-router.register(r'whatsapp-messages', WhatsAppMessageViewSet, basename='whatsapp_message')
-router.register(r'ai-alerts', AIAlertViewSet, basename='ai_alert')
+# Module 6 — HR & Payroll
+router.register(r'employees', EmployeeViewSet, basename='employee')
+router.register(r'payroll-runs', PayrollRunViewSet, basename='payroll_run')
+# Module 7 — Advanced Checks
+router.register(r'checks', AdvancedCheckViewSet, basename='check')
+# Market
+router.register(r'market/movements', DailyMovementViewSet, basename='market_movement')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -51,6 +78,7 @@ urlpatterns = [
 
     # API
     path('api/', include(router.urls)),
+    path('api/integrations/', include('integrations.urls')),
     
     # Super Admin Dashboard Endpoints
     path('api/superadmin/overview/', api_superadmin.overview, name='superadmin_overview'),

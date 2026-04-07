@@ -9,14 +9,38 @@ class TenantStatus(models.TextChoices):
     EXPIRED = 'expired', 'منتهي'
     SUSPENDED = 'suspended', 'موقوف'
 
+class Currency(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey('Tenant', on_delete=models.CASCADE, related_name='tenant_currencies')
+    code = models.CharField(max_length=10, verbose_name="كود العملة (مثل ILS)")
+    name = models.CharField(max_length=50, verbose_name="اسم العملة")
+    symbol = models.CharField(max_length=5, verbose_name="الرمز")
+    is_base = models.BooleanField(default=False, verbose_name="العملة الأساسية؟")
+
+    class Meta:
+        verbose_name = 'العملة'
+        verbose_name_plural = 'العملات'
+        unique_together = ('tenant', 'code')
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
 class Tenant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=150, verbose_name="اسم المحل")
-    subdomain = models.CharField(max_length=50, unique=True, db_index=True)
-    status = models.CharField(max_length=20, choices=TenantStatus.choices, default=TenantStatus.TRIAL)
-    trial_ends_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    name = models.CharField(max_length=150, verbose_name="اسم المحل / الوكالة")
+    subdomain = models.CharField(max_length=50, unique=True, db_index=True, verbose_name="رابط الموقع (Subdomain)")
+    status = models.CharField(max_length=20, choices=TenantStatus.choices, default=TenantStatus.TRIAL, verbose_name="حالة الاشتراك")
+    
+    # Currency Settings
+    base_currency_code = models.CharField(max_length=10, default='ILS', verbose_name="كود العملة الأساسية")
+    base_currency_symbol = models.CharField(max_length=5, default='₪', verbose_name="رمز العملة الأساسية")
+    trial_ends_at = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ انتهاء الفترة التجريبية")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="آخر تحديث")
+
+    class Meta:
+        verbose_name = 'المحل / الوكالة'
+        verbose_name_plural = 'المحلات والوكالات المشتركة'
 
     def __str__(self):
         return f"{self.name} ({self.subdomain})"
@@ -47,9 +71,14 @@ class CustomUser(AbstractUser):
         null=True, 
         blank=True, 
         related_name='users',
-        db_index=True 
+        db_index=True,
+        verbose_name="المحل التابع له"
     )
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='cashier')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='cashier', verbose_name="الصلاحية")
+
+    class Meta:
+        verbose_name = 'المستخدم'
+        verbose_name_plural = 'المستخدمين'
 
     # Assign custom manager for automatic tenant filtering
     objects = CustomUserManager()
@@ -60,48 +89,54 @@ class CustomUser(AbstractUser):
 
 class AuditLog(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='audit_logs')
-    user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
-    action = models.CharField(max_length=50)
-    entity_id = models.CharField(max_length=255, null=True, blank=True)
-    entity_type = models.CharField(max_length=100)
-    before_data = models.JSONField(default=dict, blank=True)
-    after_data = models.JSONField(default=dict, blank=True)
-    delta = models.JSONField(default=dict, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='audit_logs', verbose_name="المحل")
+    user = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, verbose_name="المستخدم")
+    action = models.CharField(max_length=50, verbose_name="الإجراء")
+    entity_id = models.CharField(max_length=255, null=True, blank=True, verbose_name="معرف الكيان")
+    entity_type = models.CharField(max_length=100, verbose_name="نوع الكيان")
+    before_data = models.JSONField(default=dict, blank=True, verbose_name="البيانات السابقة")
+    after_data = models.JSONField(default=dict, blank=True, verbose_name="البيانات الجديدة")
+    delta = models.JSONField(default=dict, blank=True, verbose_name="الفروقات")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ العملية")
+
+    class Meta:
+        verbose_name = 'سجل الرقابة'
+        verbose_name_plural = 'سجلات الرقابة والعمليات'
 
     def save(self, *args, **kwargs):
         if not self._state.adding:
-            raise PermissionError("Tinkering with an AuditLog record is strictly prohibited!")
+            raise PermissionError("التلاعب بسجل الرقابة ممنوع تماماً!")
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        raise PermissionError("Deleting an AuditLog is strictly prohibited!")
+        raise PermissionError("حذف سجل الرقابة ممنوع تماماً!")
 
     def __str__(self):
-        return f"{self.action} on {self.entity_type} {self.entity_id}"
+        return f"{self.action} on {self.entity_type}"
 
 class TenantDailySnapshot(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='daily_snapshots')
-    date = models.DateField(auto_now_add=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='daily_snapshots', verbose_name="المحل")
+    date = models.DateField(auto_now_add=True, verbose_name="التاريخ")
     
-    sales_count = models.IntegerField(default=0)
-    sales_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
-    credit_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    sales_count = models.IntegerField(default=0, verbose_name="عدد المبيعات")
+    sales_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="إجمالي المبيعات")
+    cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="المبيعات النقدية")
+    credit_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="المبيعات الآجلة")
     
-    settlements_count = models.IntegerField(default=0)
-    commissions_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    settlements_count = models.IntegerField(default=0, verbose_name="عدد التصفيات")
+    commissions_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="إجمالي العمولات")
     
-    active_users = models.IntegerField(default=0)
-    login_count = models.IntegerField(default=0)
-    last_activity = models.DateTimeField(null=True, blank=True)
+    active_users = models.IntegerField(default=0, verbose_name="المستخدمين النشطين")
+    login_count = models.IntegerField(default=0, verbose_name="عدد مرات الدخول")
+    last_activity = models.DateTimeField(null=True, blank=True, verbose_name="آخر نشاط")
     
-    error_count = models.IntegerField(default=0)
-    warning_count = models.IntegerField(default=0)
+    error_count = models.IntegerField(default=0, verbose_name="عدد الأخطاء")
+    warning_count = models.IntegerField(default=0, verbose_name="عدد التحذيرات")
 
     class Meta:
+        verbose_name = 'ملخص الأداء اليومي'
+        verbose_name_plural = 'ملخصات الأداء اليومية'
         unique_together = ('tenant', 'date')
 
     def __str__(self):

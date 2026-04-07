@@ -18,11 +18,15 @@ def make_user(tenant, username='u1', role='cashier'):
 
 
 def make_supplier(tenant, name='Sup'):
+    from suppliers.models import CommissionType
+    ct, _ = CommissionType.objects.get_or_create(
+        tenant=tenant, name='Percent', 
+        defaults={'calc_type': 'percent', 'default_rate': Decimal('10.00')}
+    )
     return Supplier.objects.create(
         tenant=tenant, name=name,
         deal_type=DealType.COMMISSION,
-        commission_type=CommissionType.PERCENT,
-        commission_rate=Decimal('10.00'),
+        commission_type=ct,
     )
 
 

@@ -1,4 +1,4 @@
-﻿from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -131,21 +131,86 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.user.tenant)
 
+    @action(detail=False, methods=['post'], url_path='voucher')
+    def create_voucher(self, request):
+        """
+        Creates multiple cash/check transactions in one go.
+        Expected data: {
+            'tx_type': 'in'/'out',
+            'currency_code': 'ILS',
+            'description': '...',
+            'entries': [
+                {'type': 'cash', 'amount': 100},
+                {'type': 'check', 'amount': 200, 'check_number': '123', 'bank_name': 'Bank X', 'due_date': '2026-06-05'}
+            ]
+        }
+        """
+        from django.db import transaction
+        from .models import Check
+        
+        data = request.data
+        entries = data.get('entries', [])
+        tx_type = data.get('tx_type', 'in')
+        currency_code = data.get('currency_code', 'ILS')
+        description = data.get('description', '')
+        
+        if not entries:
+            return Response({'error': 'يجب إضافة سطر واحد على الأقل'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            with transaction.atomic():
+                created_items = []
+                for entry in entries:
+                    is_check = entry.get('type') == 'check'
+                    check_obj = None
+                    
+                    if is_check:
+                        check_obj = Check.objects.create(
+                            tenant=request.user.tenant,
+                            check_number=entry.get('check_number'),
+                            bank_name=entry.get('bank_name'),
+                            due_date=entry.get('due_date'),
+                            amount=entry.get('amount'),
+                            currency_code=currency_code,
+                            drawer_name=data.get('received_from')
+                        )
+                    
+                    tx = CashTransaction.objects.create(
+                        tenant=request.user.tenant,
+                        tx_type=tx_type,
+                        currency_code=currency_code,
+                        amount=entry.get('amount'),
+                        is_check=is_check,
+                        check_ref=check_obj,
+                        description=description,
+                        reference_type='voucher'
+                    )
+                    created_items.append(tx)
+                
+                return Response({'message': 'تم حفظ السند بنجاح', 'count': len(created_items)}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=['get'], url_path='balance')
     def balance(self, request):
-        agg = CashTransaction.objects.filter(tenant=request.user.tenant).aggregate(
-            total_in=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='in')),
-            total_out=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='out')),
-        )
-        
         from decimal import Decimal, ROUND_HALF_UP
-        MONEY = Decimal('0.01')
+        from core.models import Currency
         
-        total_in = agg['total_in'] or Decimal('0.00')
-        total_out = agg['total_out'] or Decimal('0.00')
+        active_currencies = Currency.objects.filter(tenant=request.user.tenant)
+        results = []
         
-        return Response({
-            'balance':   str((total_in - total_out).quantize(MONEY, ROUND_HALF_UP)),
-            'total_in':  str(total_in.quantize(MONEY, ROUND_HALF_UP)),
-            'total_out': str(total_out.quantize(MONEY, ROUND_HALF_UP)),
-        })
+        for cur in active_currencies:
+            agg = CashTransaction.objects.filter(tenant=request.user.tenant, currency_code=cur.code).aggregate(
+                total_in=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='in')),
+                total_out=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='out')),
+            )
+            total_in = agg['total_in'] or Decimal('0.00')
+            total_out = agg['total_out'] or Decimal('0.00')
+            results.append({
+                'currency_code': cur.code,
+                'balance':   str((total_in - total_out).quantize(Decimal('0.01'), ROUND_HALF_UP)),
+                'total_in':  str(total_in.quantize(Decimal('0.01'), ROUND_HALF_UP)),
+                'total_out': str(total_out.quantize(Decimal('0.01'), ROUND_HALF_UP)),
+            })
+            
+        return Response({'balances': results})

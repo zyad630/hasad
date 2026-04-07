@@ -1,5 +1,29 @@
 from rest_framework import serializers
-from .models import Tenant, CustomUser
+from .models import Tenant, CustomUser, Currency
+
+class CurrencySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Currency
+        fields = ['id', 'code', 'name', 'symbol', 'is_base']
+
+class CurrencySerializerMixin(serializers.Serializer):
+    currency_symbol = serializers.SerializerMethodField()
+    currency_name = serializers.SerializerMethodField()
+
+    def get_currency_symbol(self, obj):
+        try:
+            # Assumes obj has tenant and currency_code
+            cur = Currency.objects.filter(tenant=obj.tenant, code=obj.currency_code).first()
+            return cur.symbol if cur else obj.currency_code
+        except:
+            return getattr(obj, 'currency_code', 'ILS')
+
+    def get_currency_name(self, obj):
+        try:
+            cur = Currency.objects.filter(tenant=obj.tenant, code=obj.currency_code).first()
+            return cur.name if cur else obj.currency_code
+        except:
+            return getattr(obj, 'currency_code', 'ILS')
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -15,7 +39,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'role', 'permissions_list', 'is_active', 'tenant_name']
+        fields = ['id', 'username', 'role', 'permissions_list', 'is_active', 'is_staff', 'tenant_name']
         read_only_fields = ['id']
 
     def get_tenant_name(self, obj):

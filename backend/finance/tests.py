@@ -2,7 +2,7 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 from core.models import Tenant, CustomUser
-from suppliers.models import Supplier, DealType, CommissionType
+from suppliers.models import CommissionType, Supplier, DealType
 from inventory.models import Item, Shipment, ShipmentItem
 from sales.models import Sale, SaleItem, PaymentType
 from finance.models import Settlement
@@ -16,9 +16,16 @@ class SettlementTestCase(TestCase):
         self.user = CustomUser.objects.create_user(
             username='admin', password='123', tenant=self.tenant, role='owner'
         )
+        # Module 1: CommissionType as proper model
+        self.commission_type = CommissionType.objects.create(
+            tenant=self.tenant,
+            name='نسبة مئوية',
+            calc_type='percent',
+            default_rate=Decimal('10.00'),
+        )
         self.supplier = Supplier.objects.create(
             tenant=self.tenant, name='Sub', deal_type=DealType.COMMISSION,
-            commission_type=CommissionType.PERCENT, commission_rate=Decimal('10.00')
+            commission_type=self.commission_type,
         )
         self.item = Item.objects.create(tenant=self.tenant, name='Potato')
         self.shipment = Shipment.objects.create(
@@ -27,7 +34,8 @@ class SettlementTestCase(TestCase):
         )
         self.s_item = ShipmentItem.objects.create(
             shipment=self.shipment, item=self.item,
-            quantity=Decimal('100.000'), remaining_qty=Decimal('50.000')
+            quantity=Decimal('100.000'), remaining_qty=Decimal('50.000'),
+            unit='kg',
         )
 
         # Create Sales to generate value

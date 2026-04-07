@@ -1,7 +1,9 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from django.db import transaction
 from .models import Sale, SaleItem, ContainerTransaction
 from inventory.models import ShipmentItem
+
+from core.serializers import CurrencySerializerMixin
 
 class SaleItemSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source='shipment_item.item.name', read_only=True)
@@ -10,13 +12,13 @@ class SaleItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'shipment_item', 'item_name', 'quantity', 'unit_price', 'subtotal', 'containers_out']
         read_only_fields = ['id', 'subtotal']
 
-class SaleSerializer(serializers.ModelSerializer):
+class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
     items = SaleItemSerializer(many=True)
     customer_name = serializers.CharField(source='customer.name', read_only=True)
 
     class Meta:
         model = Sale
-        fields = ['id', 'customer', 'customer_name', 'sale_date', 'payment_type', 'total_amount', 'items']
+        fields = ['id', 'customer', 'customer_name', 'sale_date', 'payment_type', 'currency_code', 'currency_symbol', 'currency_name', 'total_amount', 'items']
         read_only_fields = ['id', 'sale_date', 'total_amount']
 
     def validate(self, data):

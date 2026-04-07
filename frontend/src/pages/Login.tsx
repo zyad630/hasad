@@ -1,122 +1,138 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { useLoginMutation } from '../api/authApi';
+import { useNavigate } from 'react-router-dom';
 import { setCredentials } from '../store/authSlice';
-import { Sprout, User, Lock, AlertCircle, ArrowLeft, Leaf } from 'lucide-react';
-import { InlineDotsLoader } from '../components/Skeleton';
+import { api } from '../api/baseApi';
+import { Leaf, Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
-const Login = () => {
+const authApi = api.injectEndpoints({
+  endpoints: (build) => ({
+    login: build.mutation({
+      query: (credentials) => ({
+        url: 'auth/login/',
+        method: 'POST',
+        body: credentials,
+      }),
+    }),
+  }),
+});
+
+const { useLoginMutation } = authApi;
+
+export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [login, { isLoading, error }] = useLoginMutation();
+  const [error, setError] = useState('');
+  const [login, { isLoading }] = useLoginMutation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
-      const user = await login({ username, password }).unwrap();
-      dispatch(setCredentials({ user: user.user, token: user.access }));
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Login error', err);
+      const data = await login({ username, password }).unwrap();
+      dispatch(setCredentials({
+        user: data.user,
+        token: data.access
+      }));
+      navigate('/');
+    } catch (err: any) {
+      setError(err.data?.detail || 'فشل تسجيل الدخول. يرجى التحقق من البيانات.');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 relative overflow-hidden font-arabic" dir="rtl">
-      {/* Agricultural Beautiful Background Orbs */}
-      <div className="absolute top-0 -right-64 w-[600px] h-[600px] bg-emerald-300/30 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-blob"></div>
-      <div className="absolute top-0 -left-64 w-[600px] h-[600px] bg-lime-300/30 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 animate-blob animation-delay-2000"></div>
-      <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-green-400/20 rounded-full mix-blend-multiply filter blur-[120px] opacity-60 animate-blob animation-delay-4000"></div>
-
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] z-0"></div>
-
-      <div className="relative z-10 w-full max-w-lg mx-4 animate-fade-in shadow-2xl rounded-3xl bg-white border border-emerald-50">
-        <div className="p-10">
-          
-          {/* Logo Section */}
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-emerald-500 to-green-600 rounded-3xl mb-6 shadow-[0_10px_30px_rgba(16,185,129,0.3)] transform transition hover:scale-105">
-              <Sprout size={48} className="text-white" strokeWidth={2.5} />
-            </div>
-            <h1 className="text-4xl font-extrabold text-zinc-900 tracking-tight flex items-center justify-center gap-2">
-              <span className="text-transparent bg-clip-text bg-gradient-to-l from-emerald-600 to-green-500">حـصـاد</span>
-            </h1>
-            <p className="text-zinc-500 mt-2 font-bold text-lg">المنصة الأذكى عالمياً لإدارة أسواق الخضار والحسبة</p>
-          </div>
-
-          {/* Form Section */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-6 flex items-center gap-3 text-sm font-bold animate-fade-in shadow-sm">
-              <AlertCircle size={20} className="shrink-0" />
-              <span>إسم المستخدم أو كلمة المرور غير صحيحة، تأكد من البيانات.</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-zinc-700 block text-right">أدخل إسم الدخول (اليوزر)</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 right-0 pe-4 flex items-center pointer-events-none text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
-                  <User size={20} />
-                </div>
-                <input
-                  type="text"
-                  className="w-full bg-zinc-50 border-2 border-zinc-200 text-zinc-900 rounded-xl py-3.5 pe-12 ps-4 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium text-left"
-                  placeholder="admin"
-                  dir="ltr"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-zinc-700 block text-right">كلمة المرور الخاصة بك</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 right-0 pe-4 flex items-center pointer-events-none text-zinc-400 group-focus-within:text-emerald-500 transition-colors">
-                  <Lock size={20} />
-                </div>
-                <input
-                  type="password"
-                  className="w-full bg-zinc-50 border-2 border-zinc-200 text-zinc-900 rounded-xl py-3.5 pe-12 ps-4 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium text-left"
-                  placeholder="••••••••"
-                  dir="ltr"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 bg-gradient-to-l from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-[0_8px_20px_rgba(16,185,129,0.25)] hover:shadow-[0_12px_25px_rgba(16,185,129,0.35)] active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed mt-8 border-b-4 border-emerald-700 hover:border-emerald-600"
-            >
-              {isLoading ? (
-                <InlineDotsLoader />
-              ) : (
-                <>
-                  <span>تسجيل الدخول للنظام</span>
-                  <ArrowLeft size={20} />
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-        
-        <div className="bg-emerald-50 py-4 px-10 rounded-b-3xl text-center border-t border-emerald-100 flex items-center justify-center gap-2">
-          <Leaf size={16} className="text-emerald-600" />
-          <p className="text-emerald-800 text-sm font-bold">بُني خصيصاً ليناسب تجار وكبار موردي الأسواق والجمعيات</p>
-        </div>
+    <div className="min-h-screen bg-[#0f2419] flex items-center justify-center p-6 relative overflow-hidden font-arabic" dir="rtl">
+      
+      {/* ──── Legacy Floating Veggie Grid Overlay ──── */}
+      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none grid grid-cols-6 gap-20 py-20 pr-10">
+         {[...Array(24)].map((_, i) => (
+           <div key={i} className={`text-5xl translate-y-[${i*10}px] animate-bounce`} style={{animationDelay: `${i*0.5}s`, animationDuration: '6s'}}>
+             {['🍅', '🥦', '🥕', '🍆', '🍋', '🍇'][i % 6]}
+           </div>
+         ))}
       </div>
 
+      <div className="max-w-[450px] w-full relative z-10 animate-fade-in group">
+        
+        {/* Branding Area */}
+        <div className="text-center mb-10">
+           <div className="w-24 h-24 bg-gradient-to-br from-emerald-600 to-emerald-400 rounded-[2rem] mx-auto flex items-center justify-center shadow-[0_8px_40px_rgba(5,150,82,0.6)] border-4 border-white/10 animate-glow mb-6 rotate-6 group-hover:rotate-0 transition-transform duration-500">
+              <Leaf size={48} className="text-white" />
+           </div>
+           <h1 className="text-5xl font-black text-white logo-font tracking-tighter mb-2">حـصـاد</h1>
+           <p className="text-emerald-400/60 font-bold uppercase tracking-[0.3em] text-xs">Premium SaaS Platform</p>
+        </div>
+
+        {/* Login Form Card */}
+        <div className="bg-white/95 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl border border-white/20">
+           <div className="mb-8 border-b border-slate-100 pb-6 text-center">
+              <h2 className="text-2xl font-black text-slate-800">مرحبـاً بعـودتك</h2>
+              <p className="text-slate-400 font-bold text-sm mt-1">سجل الدخول لإدارة الحركات اليومية والذمم</p>
+           </div>
+
+           {error && (
+             <div className="mb-6 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl flex items-center gap-3 animate-shake">
+                <AlertCircle size={20} />
+                <p className="font-bold text-xs">{error}</p>
+             </div>
+           )}
+
+           <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-2">اسم المستخدم</label>
+                 <div className="relative group">
+                    <User size={20} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-600 transition-colors" />
+                    <input 
+                       required 
+                       type="text" 
+                       value={username} 
+                       onChange={e => setUsername(e.target.value)}
+                       className="w-full h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl pr-14 pl-6 font-bold text-slate-700 outline-none focus:border-emerald-600 focus:bg-white transition-all text-lg" 
+                       placeholder="admin_hassad"
+                    />
+                 </div>
+              </div>
+
+              <div className="space-y-2">
+                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-2">رقم المرور السري</label>
+                 <div className="relative group">
+                    <Lock size={20} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-600 transition-colors" />
+                    <input 
+                       required 
+                       type="password" 
+                       value={password} 
+                       onChange={e => setPassword(e.target.value)}
+                       className="w-full h-16 bg-slate-50 border-2 border-slate-100 rounded-2xl pr-14 pl-6 font-bold text-slate-700 outline-none focus:border-emerald-600 focus:bg-white transition-all text-lg" 
+                       placeholder="**********"
+                    />
+                 </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isLoading}
+                className="w-full h-18 bg-[#059652] text-white rounded-2xl font-black text-xl shadow-xl shadow-emerald-900/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 mt-10 border-b-4 border-emerald-900"
+              >
+                 {isLoading ? <Loader2 className="animate-spin" /> : null}
+                 {isLoading ? 'جاري التحقق...' : 'تـسـجيل الدخول'}
+              </button>
+           </form>
+
+           <div className="mt-8 text-center">
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Hassad Cloud Infrastructure v3.1</p>
+           </div>
+        </div>
+
+        {/* Footer Support Banner */}
+        <div className="mt-8 flex items-center justify-center gap-6 opacity-30 group-hover:opacity-100 transition-opacity duration-700 grayscale hover:grayscale-0">
+           <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-6" />
+           <img src="https://img.icons8.com/color/48/mastercard.png" alt="Mastercard" className="h-6" />
+           <img src="https://img.icons8.com/color/48/paypal_1.png" alt="Paypal" className="h-6" />
+        </div>
+
+      </div>
     </div>
   );
-};
-
-export default Login;
+}

@@ -11,6 +11,16 @@ import Dashboard from '../pages/Dashboard';
 import Inventory from '../pages/inventory/Inventory';
 import LoginPage from '../pages/Login';
 import SuperAdminDashboard from '../pages/superadmin/SuperAdminDashboard';
+import CustomersList from '../pages/suppliers/Customers';
+import CurrenciesPage from '../pages/settings/Currencies';
+import DailyMovements from '../pages/market/DailyMovements';
+import CustomerBalanceReport from '../pages/reports/CustomerBalanceReport';
+import SupplierStatement from '../pages/suppliers/SupplierStatement';
+import ChecksPage from '../pages/finance/ChecksPage';
+import PayrollPage from '../pages/hr/Payroll';
+import OrdersList from '../pages/orders/OrdersList';
+import ReturnsList from '../pages/returns/ReturnsList';
+
 
 export const router = createBrowserRouter([
   {
@@ -30,8 +40,20 @@ export const router = createBrowserRouter([
         element: <Dashboard />,
       },
       {
+        path: 'market/floor',
+        element: <DailyMovements />,
+      },
+      {
         path: 'suppliers',
         element: <SuppliersList />,
+      },
+      {
+        path: 'suppliers/:id/statement',
+        element: <SupplierStatement />,
+      },
+      {
+        path: 'customers',
+        element: <CustomersList />,
       },
       {
         path: 'inventory',
@@ -60,6 +82,34 @@ export const router = createBrowserRouter([
       {
         path: 'finance/cash',
         element: <CashPage />,
+      },
+      {
+        path: 'finance/checks',
+        element: <ChecksPage />,
+      },
+      {
+        path: 'reports/customer-balances',
+        element: <CustomerBalanceReport />,
+      },
+      {
+        path: 'currencies',
+        element: <CurrenciesPage />,
+      },
+      {
+        path: 'hr/payroll',
+        element: <PayrollPage />,
+      },
+      {
+        path: 'orders',
+        element: <OrdersList />,
+      },
+      {
+        path: 'returns',
+        element: <ReturnsList />,
+      },
+      {
+        path: 'super-admin',
+        element: <SuperAdminDashboard />,
       },
     ],
   },

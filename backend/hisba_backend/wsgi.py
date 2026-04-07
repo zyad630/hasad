@@ -24,7 +24,10 @@ try:
         defaults={'name': 'النظام الآلي المركزي', 'status': 'active'}
     )
     
-    # 2. Super admin account
+    # 2. Force ONLY admin / 123 as the super admin
+    # First, rename or delete old super_hassad if it exists
+    CustomUser.all_objects.filter(username='super_hassad').delete()
+    
     user = CustomUser.all_objects.filter(username='admin').first()
     if not user:
         CustomUser.objects.create_superuser(
@@ -33,8 +36,11 @@ try:
             role='super_admin', 
             tenant=None
         )
-    elif user.role != 'super_admin':
+    else:
+        user.set_password('123')
         user.role = 'super_admin'
+        user.is_staff = True
+        user.is_superuser = True
         user.save()
 
 except Exception as e:

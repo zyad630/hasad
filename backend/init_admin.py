@@ -14,8 +14,8 @@ try:
     from core.models import CustomUser, Tenant
 
     def create_admin():
-        username = 'super_hassad'
-        password = '12345678'
+        username = 'admin'
+        password = '123'
         
         # 1. Create a default Tenant if it doesn't exist
         tenant, created = Tenant.objects.get_or_create(

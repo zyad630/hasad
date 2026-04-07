@@ -24,18 +24,19 @@ try:
         defaults={'name': 'النظام الآلي المركزي', 'status': 'active'}
     )
     
-    # 2. Super_hassad admin
-    user = CustomUser.all_objects.filter(username='super_hassad').first()
+    # 2. Super admin account
+    user = CustomUser.all_objects.filter(username='admin').first()
     if not user:
         CustomUser.objects.create_superuser(
-            username='super_hassad', 
-            password='12345678', 
+            username='admin', 
+            password='123', 
             role='super_admin', 
             tenant=None
         )
     elif user.role != 'super_admin':
         user.role = 'super_admin'
         user.save()
+
 except Exception as e:
     # Safely ignore if DB hasn't been migrated yet, etc.
     print("Auto-Init Admin failed safely:", str(e))

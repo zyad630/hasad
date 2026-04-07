@@ -18,7 +18,7 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        tenant = request.user.tenant
+        tenant = request.tenant
         
         # Sales by currency with details
         from core.models import Currency
@@ -84,14 +84,14 @@ class SalesReportView(APIView):
         if not date_from or not date_to:
             return Response({'error': 'from و to مطلوبان (YYYY-MM-DD)'}, status=400)
 
-        cache_key = f'report_sales_{request.user.tenant.id}_{date_from}_{date_to}'
+        cache_key = f'report_sales_{request.tenant.id}_{date_from}_{date_to}'
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)
 
         data = list(
             Sale.objects.filter(
-                tenant=request.user.tenant,
+                tenant=request.tenant,
                 is_cancelled=False,
                 sale_date__date__range=[date_from, date_to],
             ).annotate(
@@ -122,14 +122,14 @@ class AgingReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cache_key = f'report_aging_{request.user.tenant.id}'
+        cache_key = f'report_aging_{request.tenant.id}'
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)
 
         customers = list(
             Customer.objects.filter(
-                tenant=request.user.tenant,
+                tenant=request.tenant,
                 credit_balance__gt=0,
                 is_active=True,
             ).values(
@@ -153,13 +153,13 @@ class SupplierSettlementSummaryView(APIView):
     def get(self, request):
         from finance.models import Settlement
 
-        cache_key = f'supplier_settlements_{request.user.tenant.id}'
+        cache_key = f'supplier_settlements_{request.tenant.id}'
         cached = cache.get(cache_key)
         if cached is not None:
             return Response(cached)
 
         data = list(
-            Settlement.objects.filter(tenant=request.user.tenant)
+            Settlement.objects.filter(tenant=request.tenant)
             .values('supplier__id', 'supplier__name')
             .annotate(
                 total_sales=Sum('total_sales'),

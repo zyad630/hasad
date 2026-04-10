@@ -45,7 +45,9 @@ const CustomersList = () => {
     name: '', phone: '', customer_type: 'trader', credit_limit: 0
   });
 
-  const customers = customersData?.results || (Array.isArray(customersData) ? customersData : []);
+  const customers = Array.isArray(customersData) 
+    ? customersData 
+    : (customersData as any)?.results || [];
 
   // Calculate totals per currency
   const totalCredits: Record<string, {amount: number, symbol: string, name: string}> = {};

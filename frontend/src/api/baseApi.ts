@@ -22,13 +22,15 @@ const customBaseQuery = async (args: any, api: any, extraOptions: any) => {
   const result = await rawBaseQuery(args, api, extraOptions);
   
   if (result.error && result.error.status === 401) {
-    // If token is expired or invalid, auto logout to redirect to login page
     api.dispatch(logout());
   }
   
-  if (result.data && typeof result.data === 'object' && 'results' in result.data) {
-    // Extract DRF paginated 'results' automatically to prevent .map crashes
-    result.data = (result.data as any).results;
+  // Robust check for DRF pagination
+  if (result.data && typeof result.data === 'object' && !Array.isArray(result.data)) {
+    const dataObj = result.data as any;
+    if ('results' in dataObj && Array.isArray(dataObj.results)) {
+       result.data = dataObj.results;
+    }
   }
   return result;
 };

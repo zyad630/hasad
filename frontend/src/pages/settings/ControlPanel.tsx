@@ -34,6 +34,11 @@ const cpApi = api.injectEndpoints({
     getAccounts: b.query({ query: () => 'accounts/', providesTags: ['Accounts'] }),
     createAccount: b.mutation({ query: (d) => ({ url: 'accounts/', method: 'POST', body: d }), invalidatesTags: ['Accounts'] }),
     updateAccount: b.mutation({ query: ({ id, ...d }) => ({ url: `accounts/${id}/`, method: 'PATCH', body: d }), invalidatesTags: ['Accounts'] }),
+    // Global Units
+    getGlobalUnits: b.query({ query: () => 'global-units/', providesTags: ['GlobalUnits'] }),
+    createGlobalUnit: b.mutation({ query: (d) => ({ url: 'global-units/', method: 'POST', body: d }), invalidatesTags: ['GlobalUnits'] }),
+    updateGlobalUnit: b.mutation({ query: ({ id, ...d }) => ({ url: `global-units/${id}/`, method: 'PATCH', body: d }), invalidatesTags: ['GlobalUnits'] }),
+    deleteGlobalUnit: b.mutation({ query: (id) => ({ url: `global-units/${id}/`, method: 'DELETE' }), invalidatesTags: ['GlobalUnits'] }),
   }),
   overrideExisting: false,
 });
@@ -46,6 +51,7 @@ export const {
   useGetCategoriesQuery, useCreateCategoryMutation, useDeleteCategoryMutation,
   useGetAccountGroupsQuery, useCreateAccountGroupMutation, useUpdateAccountGroupMutation, useDeleteAccountGroupMutation,
   useGetAccountsQuery, useCreateAccountMutation, useUpdateAccountMutation,
+  useGetGlobalUnitsQuery, useCreateGlobalUnitMutation, useUpdateGlobalUnitMutation, useDeleteGlobalUnitMutation,
 } = cpApi;
 
 /* ── Sidebar tabs ── */
@@ -54,6 +60,7 @@ const TABS = [
   { id: 'commissions',  label: 'أنواع العمولة (كميسيون)', icon: 'fa-percent' },
   { id: 'users',        label: 'المستخدمون والصلاحيات',  icon: 'fa-users-gear' },
   { id: 'categories',   label: 'تصنيفات الأصناف',         icon: 'fa-tags' },
+  { id: 'units',        label: 'الوحدات (الفوارغ)',        icon: 'fa-box' },
   { id: 'coa',          label: 'شجرة الحسابات',           icon: 'fa-sitemap' },
 ];
 
@@ -95,6 +102,7 @@ export default function ControlPanel() {
         {tab === 'commissions' && <CommissionsTab />}
         {tab === 'users'       && <UsersTab />}
         {tab === 'categories'  && <CategoriesTab />}
+        {tab === 'units'       && <GlobalUnitsTab />}
         {tab === 'coa'         && <ChartOfAccountsTab />}
       </div>
     </div>
@@ -113,12 +121,24 @@ function CurrenciesTab() {
   const currencies = currData?.results || (Array.isArray(currData) ? currData : []);
   const rates = ratesData?.results || (Array.isArray(ratesData) ? ratesData : []);
 
-  const [newCur, setNewCur] = useState({ code: '', name: '', symbol: '', is_base: false });
+  const [newCur, setNewCur] = useState({ code: '', name: '', symbol: '' });
   const [newRate, setNewRate] = useState({ currency: '', rate: '', date: new Date().toISOString().split('T')[0] });
 
+  const [updateCurrency] = useUpdateCurrencyMutation();
+
   const submitCurrency = async () => {
-    try { await createCurrency(newCur).unwrap(); showToast('تمت الإضافة', 'success'); setNewCur({ code: '', name: '', symbol: '', is_base: false }); }
+    try { await createCurrency(newCur).unwrap(); showToast('تمت الإضافة', 'success'); setNewCur({ code: '', name: '', symbol: '' }); }
     catch (e: any) { showToast(JSON.stringify(e?.data || 'خطأ'), 'error'); }
+  };
+
+  const handleSetBase = async (id: string) => {
+    if (!window.confirm('هل تريد تغيير العملة الأساسية؟')) return;
+    try {
+      await updateCurrency({ id, is_base: true }).unwrap();
+      showToast('تم تغيير العملة الأساسية بنجاح', 'success');
+    } catch {
+      showToast('خطأ في العملية', 'error');
+    }
   };
 
   const submitRate = async () => {
@@ -132,7 +152,7 @@ function CurrenciesTab() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
           <thead style={{ background: '#f4f4f5' }}>
             <tr>
-              {['الكود', 'الاسم', 'الرمز', 'أساسية؟', ''].map(h => (
+              {['الكود', 'الاسم', 'الرمز', 'الحالة / أساسية', 'العمليات'].map(h => (
                 <th key={h} style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: '#52525b' }}>{h}</th>
               ))}
             </tr>
@@ -143,24 +163,35 @@ function CurrenciesTab() {
                 <td style={{ padding: '10px', fontWeight: 900, color: '#059669' }}>{c.code}</td>
                 <td style={{ padding: '10px' }}>{c.name}</td>
                 <td style={{ padding: '10px' }}>{c.symbol}</td>
-                <td style={{ padding: '10px' }}>{c.is_base ? <span style={{ color: '#059669', fontWeight: 900 }}>✓ أساسية</span> : '—'}</td>
                 <td style={{ padding: '10px' }}>
+                  {c.is_base ? 
+                    <span style={{ color: '#059669', fontWeight: 900, background: '#f0fdf4', padding: '4px 10px', borderRadius: '20px', fontSize: '12px' }}>✓ عملة النظام الأساسية</span> 
+                    : <span style={{ color: '#a1a1aa' }}>عملة فرعية</span>
+                  }
+                </td>
+                <td style={{ padding: '10px', display: 'flex', gap: '12px' }}>
                   {!c.is_base && (
-                    <button onClick={() => deleteCurrency(c.id)} style={{ color: '#ef4444', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 900 }}>حذف</button>
+                    <>
+                      <button onClick={() => handleSetBase(c.id)} style={{ color: '#0284c7', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 900, fontSize: '12px' }}>
+                        <i className="fa-solid fa-star" style={{ marginLeft: '4px' }} />
+                        تعيين كأساسية
+                      </button>
+                      <button onClick={() => deleteCurrency(c.id)} style={{ color: '#ef4444', cursor: 'pointer', background: 'none', border: 'none', fontWeight: 900, fontSize: '12px' }}>حذف</button>
+                    </>
                   )}
                 </td>
               </tr>
             ))}
             {/* Add Row */}
-            <tr style={{ background: '#f0fdf4' }}>
+            <tr style={{ background: '#f8fafc' }}>
               <td style={{ padding: '6px' }}><Field value={newCur.code} onChange={v => setNewCur(p => ({ ...p, code: v }))} placeholder="ILS" /></td>
               <td style={{ padding: '6px' }}><Field value={newCur.name} onChange={v => setNewCur(p => ({ ...p, name: v }))} placeholder="شيكل" /></td>
               <td style={{ padding: '6px' }}><Field value={newCur.symbol} onChange={v => setNewCur(p => ({ ...p, symbol: v }))} placeholder="₪" /></td>
-              <td style={{ padding: '6px', textAlign: 'center' }}>
-                <input type="checkbox" checked={newCur.is_base} onChange={e => setNewCur(p => ({ ...p, is_base: e.target.checked }))} />
+              <td style={{ padding: '6px', textAlign: 'center', color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>
+                 سيتم تفعيلها كعملة فرعية
               </td>
               <td style={{ padding: '6px' }}>
-                <GreenBtn onClick={submitCurrency}>إضافة</GreenBtn>
+                <GreenBtn onClick={submitCurrency}>إضافة عملة</GreenBtn>
               </td>
             </tr>
           </tbody>
@@ -297,14 +328,37 @@ function UsersTab() {
   const { data } = useGetUsersQuery({});
   const [create] = useCreateUserMutation();
   const [update] = useUpdateUserMutation();
-  const [form, setForm] = useState({ username: '', password: '', role: 'cashier', first_name: '' });
+  const [form, setForm] = useState({ 
+    username: '', password: '', role: 'cashier', first_name: '',
+    permissions: [] as string[]
+  });
   const users = data?.results || (Array.isArray(data) ? data : []);
+
+  const PERMS = [
+    { id: 'pos', label: 'كاشير / ميزان' },
+    { id: 'shipments', label: 'الشحنات والكميات' },
+    { id: 'suppliers', label: 'المزارعين والذمم' },
+    { id: 'customers', label: 'التجار والزبائن' },
+    { id: 'finance', label: 'السندات والمالية (قبض/صرف)' },
+    { id: 'reports', label: 'التقارير والميزانية' },
+    { id: 'hr', label: 'الموظفين والرواتب' },
+    { id: 'settings', label: 'إعدادات النظام' },
+  ];
+
+  const togglePerm = (id: string) => {
+    setForm(p => ({
+      ...p,
+      permissions: p.permissions.includes(id) 
+        ? p.permissions.filter(x => x !== id)
+        : [...p.permissions, id]
+    }));
+  };
 
   const submit = async () => {
     try {
       await create(form).unwrap();
       showToast('تم إنشاء المستخدم', 'success');
-      setForm({ username: '', password: '', role: 'cashier', first_name: '' });
+      setForm({ username: '', password: '', role: 'cashier', first_name: '', permissions: [] });
     } catch (e: any) { showToast(JSON.stringify(e?.data || 'خطأ'), 'error'); }
   };
 
@@ -316,33 +370,52 @@ function UsersTab() {
 
   return (
     <SectionCard title="المستخدمون والصلاحيات" icon="fa-users-gear">
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '20px', background: '#f8f8f8', padding: '16px', borderRadius: '12px' }}>
-        <div>
-          <label style={labelStyle}>اسم المستخدم</label>
-          <Field value={form.username} onChange={v => setForm(p => ({ ...p, username: v }))} placeholder="user123" />
+      <div style={{ background: '#f8f8f8', padding: '24px', borderRadius: '16px', marginBottom: '24px' }}>
+        <h4 style={{ margin: '0 0 16px', fontSize: '14px', fontWeight: 900 }}>إضافة مستخدم جديد</h4>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '20px' }}>
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={labelStyle}>اسم المستخدم</label>
+            <Field value={form.username} onChange={v => setForm(p => ({ ...p, username: v }))} placeholder="user123" />
+          </div>
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={labelStyle}>الاسم الكامل</label>
+            <Field value={form.first_name} onChange={v => setForm(p => ({ ...p, first_name: v }))} placeholder="أحمد محمود" />
+          </div>
+          <div style={{ flex: 1, minWidth: '150px' }}>
+            <label style={labelStyle}>كلمة المرور</label>
+            <Field value={form.password} onChange={v => setForm(p => ({ ...p, password: v }))} type="password" placeholder="••••••••" />
+          </div>
+          <div style={{ minWidth: '150px' }}>
+            <label style={labelStyle}>الدور الأساسي</label>
+            <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
+              style={{ width: '100%', padding: '10px', border: '1px solid #e4e4e7', borderRadius: '8px', fontWeight: 700 }}>
+              <option value="cashier">كاشير</option>
+              <option value="owner">صاحب المحل</option>
+              <option value="super_admin">مدير النظام</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label style={labelStyle}>الاسم الكامل</label>
-          <Field value={form.first_name} onChange={v => setForm(p => ({ ...p, first_name: v }))} placeholder="أحمد محمود" />
+
+        <div style={{ marginBottom: '20px' }}>
+           <label style={labelStyle}>صلاحيات إضافية محددة</label>
+           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px', marginTop: '10px' }}>
+              {PERMS.map(p => (
+                <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', background: 'white', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e4e4e7' }}>
+                   <input type="checkbox" checked={form.permissions.includes(p.id)} onChange={() => togglePerm(p.id)} />
+                   {p.label}
+                </label>
+              ))}
+           </div>
         </div>
-        <div>
-          <label style={labelStyle}>كلمة المرور</label>
-          <Field value={form.password} onChange={v => setForm(p => ({ ...p, password: v }))} type="password" placeholder="••••••••" />
+
+        <div style={{ textAlign: 'left' }}>
+           <GreenBtn onClick={submit}>إضافة مستخدم</GreenBtn>
         </div>
-        <div>
-          <label style={labelStyle}>الصلاحية</label>
-          <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
-            style={{ padding: '10px', border: '1px solid #e4e4e7', borderRadius: '8px', fontWeight: 700, minWidth: '140px' }}>
-            <option value="cashier">كاشير</option>
-            <option value="owner">صاحب المحل</option>
-            <option value="super_admin">مدير النظام</option>
-          </select>
-        </div>
-        <GreenBtn onClick={submit}>إضافة مستخدم</GreenBtn>
       </div>
+
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
         <thead style={{ background: '#f4f4f5' }}>
-          <tr>{['المستخدم', 'الاسم', 'الصلاحية', 'نشط', ''].map(h => (
+          <tr>{['المستخدم', 'الاسم', 'الصلاحيات المتاحة', 'نشط', ''].map(h => (
             <th key={h} style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: '#52525b' }}>{h}</th>
           ))}</tr>
         </thead>
@@ -352,9 +425,16 @@ function UsersTab() {
               <td style={{ padding: '10px', fontWeight: 900, fontFamily: 'monospace' }}>{u.username}</td>
               <td style={{ padding: '10px' }}>{u.first_name} {u.last_name}</td>
               <td style={{ padding: '10px' }}>
-                <span style={{ background: u.role === 'owner' ? '#fef3c7' : u.role === 'super_admin' ? '#fee2e2' : '#f0fdf4', color: u.role === 'owner' ? '#92400e' : u.role === 'super_admin' ? '#991b1b' : '#065f46', padding: '3px 10px', borderRadius: '20px', fontWeight: 700, fontSize: '12px' }}>
-                  {ROLES[u.role] || u.role}
-                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    <span style={{ background: u.role === 'owner' ? '#fef3c7' : u.role === 'super_admin' ? '#fee2e2' : '#f0fdf4', color: u.role === 'owner' ? '#92400e' : u.role === 'super_admin' ? '#991b1b' : '#065f46', padding: '2px 8px', borderRadius: '12px', fontWeight: 900, fontSize: '10px' }}>
+                    {ROLES[u.role] || u.role}
+                    </span>
+                    {(u.permissions || []).map((pId: string) => (
+                        <span key={pId} style={{ background: '#eff6ff', color: '#1e40af', padding: '2px 8px', borderRadius: '12px', fontWeight: 700, fontSize: '10px' }}>
+                            {PERMS.find(x => x.id === pId)?.label || pId}
+                        </span>
+                    ))}
+                </div>
               </td>
               <td style={{ padding: '10px' }}>{u.is_active ? '✓' : '✗'}</td>
               <td style={{ padding: '10px' }}>
@@ -555,6 +635,63 @@ function GreenBtn({ onClick, children }: { onClick: () => void; children: React.
   );
 }
 
+function GlobalUnitsTab() {
+  const { showToast } = useToast();
+  const { data } = useGetGlobalUnitsQuery({});
+  const [create] = useCreateGlobalUnitMutation();
+  const [remove] = useDeleteGlobalUnitMutation();
+  const [form, setForm] = useState({ name: '', has_empties: false });
+  const items = data?.results || (Array.isArray(data) ? data : []);
+
+  const submit = async () => {
+    if (!form.name.trim()) return;
+    try { await create(form).unwrap(); showToast('تمت الإضافة', 'success'); setForm({ name: '', has_empties: false }); }
+    catch (e: any) { showToast(JSON.stringify(e?.data || 'خطأ'), 'error'); }
+  };
+
+  return (
+    <SectionCard title="إدارة الوحدات (صندوق، شوال، إلخ)" icon="fa-box">
+      <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #bbf7d0', marginBottom: '20px' }}>
+        <p style={{ fontSize: '13px', fontWeight: 700, color: '#166534', margin: '0 0 12px' }}>
+          💡 الوحدات التي يتم تفعيل خيار "فوارغ" بها، سيقوم النظام تلقائياً بتفعيل خيار "يوجد فوارغ" في شاشة البيع عند اختيارها.
+        </p>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>اسم الوحدة</label>
+            <Field value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder="مثال: صندوق خشب" />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '12px' }}>
+            <input type="checkbox" checked={form.has_empties} onChange={e => setForm(p => ({ ...p, has_empties: e.target.checked }))} style={{ width: '18px', height: '18px' }} id="has_empties_chk" />
+            <label htmlFor="has_empties_chk" style={{ fontSize: '13px', fontWeight: 700, color: '#374151', cursor: 'pointer' }}>بها فوارغ (تسترجع)؟</label>
+          </div>
+          <GreenBtn onClick={submit}>إضافة وحدة</GreenBtn>
+        </div>
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+        <thead style={{ background: '#f4f4f5' }}>
+          <tr>
+            {['الاسم', 'يتطلب فوارغ', ''].map(h => (
+              <th key={h} style={{ padding: '10px', textAlign: 'right', fontWeight: 700, color: '#52525b' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item: any) => (
+            <tr key={item.id} style={{ borderBottom: '1px solid #f4f4f5' }}>
+              <td style={{ padding: '10px', fontWeight: 900 }}>{item.name}</td>
+              <td style={{ padding: '10px' }}>{item.has_empties ? <span style={{ color: '#059669', fontWeight: 900 }}>✓ نعم</span> : <span style={{ color: '#ef4444' }}>✗ لا</span>}</td>
+              <td style={{ padding: '10px' }}>
+                <button onClick={() => remove(item.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 900 }}>حذف</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </SectionCard>
+  );
+}
+
 function SectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
     <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e4e4e7', padding: '24px' }}>
@@ -566,3 +703,4 @@ function SectionCard({ title, icon, children }: { title: string; icon: string; c
     </div>
   );
 }
+

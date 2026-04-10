@@ -22,6 +22,23 @@ class Currency(models.Model):
         verbose_name_plural = 'العملات'
         unique_together = ('tenant', 'code')
 
+    def save(self, *args, **kwargs):
+        # If this is the first currency for the tenant, make it base automatically
+        if not Currency.objects.filter(tenant=self.tenant).exists():
+            self.is_base = True
+
+        if self.is_base:
+            # Atomic update to unset other base currencies for this tenant
+            Currency.objects.filter(tenant=self.tenant).exclude(id=self.id).update(is_base=False)
+            
+            # Sync with Tenant model if needed (though we rely on Currency.is_base now)
+            # We keep the Tenant redundant fields for quick access in queries
+            self.tenant.base_currency_code = self.code
+            self.tenant.base_currency_symbol = self.symbol
+            self.tenant.save()
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.name} ({self.code})"
 
@@ -92,6 +109,7 @@ class CustomUser(AbstractUser):
         verbose_name="المحل التابع له"
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='cashier', verbose_name="الصلاحية")
+    permissions = models.JSONField(default=list, blank=True, verbose_name="الصلاحيات التفصيلية")
 
     class Meta:
         verbose_name = 'المستخدم'

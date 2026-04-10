@@ -68,7 +68,7 @@ const TenantActivityModal: React.FC<Props> = ({ tenantId, onClose }) => {
                        <tr key={log.id} className="hover:bg-slate-50">
                          <td className="px-6 py-4 font-bold text-slate-800">{log.action}</td>
                          <td className="px-6 py-4 text-slate-600">{log.user}</td>
-                         <td className="px-6 py-4 text-slate-400 text-xs">{new Date(log.created_at).toLocaleString('ar-EG')}</td>
+                         <td className="px-6 py-4 text-slate-400 text-xs">{new Date(log.created_at).toLocaleString('en-US')}</td>
                          <td className="px-6 py-4">
                            {/* Highlight changes in Green/Red based on delta keys conceptually */}
                            <pre className="text-[11px] font-code bg-slate-100/50 p-2 rounded text-slate-600 w-full overflow-x-auto">

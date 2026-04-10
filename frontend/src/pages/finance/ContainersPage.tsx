@@ -155,7 +155,7 @@ export default function ContainersPage() {
                     {(transactions || []).map((tx: any) => (
                     <tr key={tx.id}>
                         <td className="text-right" dir="ltr" style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                            {new Date(tx.tx_date).toLocaleString('ar-EG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {new Date(tx.tx_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td className="text-right" style={{ fontWeight: 700 }}>
                             {customers?.find((c:any) => c.id === tx.customer)?.name || '...'}

@@ -28,7 +28,7 @@ export default function SupplierStatement() {
 
   const handleSendWhatsApp = async () => {
     setIsSendingWA(true);
-    const text = `كشف حساب المزارع: ${statement?.supplier_name}\nالتاريخ: ${new Date().toLocaleDateString('ar-EG')}\n\nالأرصدة الحالية:\n${statement?.current_balances?.map((b: any) => `${b.amount} ${b.currency_symbol}`).join('\n')}`;
+    const text = `كشف حساب المزارع: ${statement?.supplier_name}\nالتاريخ: ${new Date().toLocaleDateString('en-US')}\n\nالأرصدة الحالية:\n${statement?.current_balances?.map((b: any) => `${b.amount} ${b.currency_symbol}`).join('\n')}`;
     
     try {
         await sendWhatsAppAlert({ phone: statement?.supplier_phone || '', text }).unwrap();
@@ -103,8 +103,8 @@ export default function SupplierStatement() {
                   {statement?.entries?.map((e: any, idx: number) => (
                     <tr key={idx} className="hover:bg-zinc-50/20 transition-colors">
                        <td className="px-6 py-5">
-                          <div className="text-sm font-bold text-zinc-600">{new Date(e.date).toLocaleDateString('ar-EG')}</div>
-                          <div className="text-[10px] text-zinc-300">{new Date(e.date).toLocaleTimeString('ar-EG')}</div>
+                          <div className="text-sm font-bold text-zinc-600">{new Date(e.date).toLocaleDateString('en-US')}</div>
+                          <div className="text-[10px] text-zinc-300">{new Date(e.date).toLocaleTimeString('en-US')}</div>
                        </td>
                        <td className="px-6 py-5 font-bold text-zinc-700 text-sm">{e.description}</td>
                        <td className="px-6 py-5 text-[10px] font-mono text-zinc-400 uppercase">
@@ -146,7 +146,7 @@ export default function SupplierStatement() {
             </div>
             <div className="text-left">
                <h2 className="text-2xl font-black">كشف حساب مزارع</h2>
-               <p className="text-sm font-bold text-zinc-400">{new Date().toLocaleDateString('ar-EG')}</p>
+               <p className="text-sm font-bold text-zinc-400">{new Date().toLocaleDateString('en-US')}</p>
             </div>
          </div>
          

@@ -26,14 +26,19 @@ const inventoryApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Items'],
     }),
+    getUnits: build.query({
+      query: () => 'global-units/',
+      providesTags: ['GlobalUnits'] as any,
+    }),
   }),
 });
 
-export const { useGetItemsQuery, useCreateItemMutation, useUpdateItemMutation } = inventoryApi;
+export const { useGetItemsQuery, useCreateItemMutation, useUpdateItemMutation, useGetUnitsQuery } = inventoryApi;
 
 const Inventory = () => {
   const { showToast } = useToast();
   const { data: itemsData, isLoading } = useGetItemsQuery({});
+  const { data: unitsData } = useGetUnitsQuery({});
   const [createItem] = useCreateItemMutation();
   const [updateItem] = useUpdateItemMutation();
 
@@ -44,6 +49,7 @@ const Inventory = () => {
   });
 
   const items = itemsData?.results || (Array.isArray(itemsData) ? itemsData : []);
+  const units = unitsData?.results || (Array.isArray(unitsData) ? unitsData : []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,10 +88,10 @@ const Inventory = () => {
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
           <h2 className="text-4xl font-extrabold text-on-surface tracking-tight flex items-center gap-3">
-             <span className="material-symbols-outlined text-4xl text-emerald-600">inventory_2</span>
-             الأصناف والفوارغ
+             <span className="material-symbols-outlined text-4xl text-emerald-600">warehouse</span>
+             المستودع وإدارة الأصناف
           </h2>
-          <p className="text-zinc-500 mt-2 font-bold opacity-70">إدارة دليل السلع، وحدات القياس، ونسب الهالك.</p>
+          <p className="text-zinc-500 mt-2 font-bold opacity-70">إدارة دليل السلع، وحدات القياس المخصصة، ونسب الهالك.</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
@@ -139,7 +145,7 @@ const Inventory = () => {
                   </td>
                   <td className="px-6 py-6 font-bold text-zinc-500">
                      <span className="px-3 py-1 bg-zinc-100 rounded-lg text-[10px] font-black uppercase">
-                       {item.base_unit === 'kg' ? 'كيلو جرام' : item.base_unit === 'box' ? 'صندوق' : 'شوال'}
+                       {units.find((u: any) => u.id === item.base_unit || u.name === item.base_unit)?.name || (item.base_unit === 'kg' ? 'كيلو جرام' : item.base_unit)}
                      </span>
                   </td>
                   <td className="px-6 py-6">
@@ -182,9 +188,10 @@ const Inventory = () => {
                 <div>
                   <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">وحدة القياس الافتراضية</label>
                   <select value={formData.base_unit} onChange={e => setFormData({...formData, base_unit: e.target.value})} className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 h-14 font-bold outline-none focus:border-emerald-600">
-                    <option value="kg">كيلو جرام</option>
-                    <option value="box">صندوق / قفص</option>
-                    <option value="sack">شوال / كيس</option>
+                    <option value="kg">كيلو جرام (افتراضي)</option>
+                    {units.map((u: any) => (
+                      <option key={u.id} value={u.name}>{u.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>

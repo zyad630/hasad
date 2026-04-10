@@ -7,6 +7,8 @@ import { logout } from '../store/authSlice';
 export const ProtectedLayout = () => {
     const dispatch = useDispatch();
     const location = useLocation();
+    const [receivablesOpen, setReceivablesOpen] = React.useState(location.pathname.startsWith('/reports/receivables'));
+    const [accountsOpen, setAccountsOpen] = React.useState(false);
     const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
 
     const handleLogout = () => {
@@ -18,7 +20,11 @@ export const ProtectedLayout = () => {
     if (!isAuthenticated) return <Navigate to="/login" replace />;
 
     const getNavClass = (path: string, exact: boolean = false, isDanger: boolean = false, isAi: boolean = false) => {
-        const isActive = exact ? location.pathname === path : location.pathname.startsWith(path);
+        const [targetPath, targetSearch] = path.split('?');
+        const isPathActive = exact ? location.pathname === targetPath : location.pathname.startsWith(targetPath);
+        const isSearchActive = !targetSearch || location.search.includes(targetSearch);
+        const isActive = isPathActive && isSearchActive;
+        
         let baseClass = 'nav-item';
         if (isDanger) baseClass += ' nav-danger';
         if (isAi) baseClass += ' nav-ai';
@@ -39,15 +45,18 @@ export const ProtectedLayout = () => {
                 </div>
 
                 <nav className="sidebar-nav" id="sidebar-nav">
-                    <div className="nav-section-label">الرئيسية</div>
+                    <div className="nav-section-label">الرئيسية والأساسيات</div>
                     <Link to="/dashboard" className={getNavClass('/dashboard', true)}>
-                        <i className="fa-solid fa-chart-pie"></i><span>لوحة التحكم (الأساسات)</span>
+                        <i className="fa-solid fa-chart-pie"></i><span>الرئيسية والتقارير</span>
+                    </Link>
+                    <Link to="/inventory" className={getNavClass('/inventory')}>
+                        <i className="fa-solid fa-boxes-stacked"></i><span>المستودع (الأصناف)</span>
                     </Link>
                     <Link to="/settings/control-panel" className={getNavClass('/settings/control-panel')}>
                         <i className="fa-solid fa-gears"></i><span>الإعدادات المتقدمة</span>
                     </Link>
 
-                    <div className="nav-section-label">العمليات</div>
+                    <div className="nav-section-label">العمليات اليومية</div>
                     <Link to="/pos" className={getNavClass('/pos')}>
                          <i className="fa-solid fa-cash-register"></i><span>نقطة البيع</span>
                     </Link>
@@ -61,6 +70,34 @@ export const ProtectedLayout = () => {
                         <i className="fa-solid fa-receipt"></i><span>الطلبات السابقة (الفواتير)</span>
                     </Link>
 
+                    <div 
+                        className={`nav-item dropdown-toggle`}
+                        onClick={() => setAccountsOpen(!accountsOpen)}
+                        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <i className="fa-solid fa-user-plus"></i><span>فتح حسابات (إضافة)</span>
+                        </div>
+                        <i className={`fa-solid fa-chevron-${accountsOpen ? 'down' : 'left'}`} style={{ fontSize: '10px' }}></i>
+                    </div>
+
+                    {accountsOpen && (
+                        <div className="dropdown-menu" style={{ paddingRight: '20px', background: 'rgba(5,150,82,0.05)', borderRadius: '8px', margin: '4px 12px' }}>
+                            <Link to="/customers?add=1" className={getNavClass('/customers?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-user-tag" style={{ fontSize: '11px' }}></i><span>حساب زبون</span>
+                            </Link>
+                            <Link to="/suppliers?add=1" className={getNavClass('/suppliers?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-tractor" style={{ fontSize: '11px' }}></i><span>حساب مزارع / مورد</span>
+                            </Link>
+                            <Link to="/hr/payroll?add=1" className={getNavClass('/hr/payroll?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-id-badge" style={{ fontSize: '11px' }}></i><span>حساب موظف</span>
+                            </Link>
+                            <Link to="/reports/receivables?party=partners" className={getNavClass('/reports/receivables?party=partners')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-handshake" style={{ fontSize: '11px' }}></i><span>حساب مساهم / شريك</span>
+                            </Link>
+                        </div>
+                    )}
+
                     <div className="nav-section-label">المحاسبة والعملاء</div>
                     <Link to="/suppliers" className={getNavClass('/suppliers')}>
                         <i className="fa-solid fa-users"></i><span>العملاء والمزارعين</span>
@@ -71,16 +108,37 @@ export const ProtectedLayout = () => {
                     <Link to="/finance/cash" className={getNavClass('/finance')}>
                         <i className="fa-solid fa-file-invoice-dollar"></i><span>السندات والمالية</span>
                     </Link>
-                    <Link to="/reports/receivables" className={getNavClass('/reports/receivables')}>
-                        <i className="fa-solid fa-wallet"></i><span>دفتر الذمم (الأرصدة)</span>
-                    </Link>
+                    
+                    <div 
+                        className={`nav-item dropdown-toggle ${location.pathname.startsWith('/reports/receivables') ? 'active' : ''}`}
+                        onClick={() => setReceivablesOpen(!receivablesOpen)}
+                        style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <i className="fa-solid fa-wallet"></i><span>دفتر الذمم (الأرصدة)</span>
+                        </div>
+                        <i className={`fa-solid fa-chevron-${receivablesOpen ? 'down' : 'left'}`} style={{ fontSize: '10px' }}></i>
+                    </div>
 
-                    <div className="nav-section-label">المخزون والجرد</div>
+                    {receivablesOpen && (
+                        <div className="dropdown-menu" style={{ paddingRight: '20px', background: 'rgba(0,0,0,0.05)', borderRadius: '8px', margin: '4px 12px' }}>
+                            <Link to="/reports/receivables?party=farmers" className={getNavClass('/reports/receivables?party=farmers')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-tractor" style={{ fontSize: '12px' }}></i><span>المزارعين</span>
+                            </Link>
+                            <Link to="/reports/receivables?party=traders" className={getNavClass('/reports/receivables?party=traders')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-store" style={{ fontSize: '12px' }}></i><span>الزبائن</span>
+                            </Link>
+                            <Link to="/reports/receivables?party=employees" className={getNavClass('/reports/receivables?party=employees')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-id-badge" style={{ fontSize: '12px' }}></i><span>الموظفين</span>
+                            </Link>
+                            <Link to="/reports/receivables?party=partners" className={getNavClass('/reports/receivables?party=partners')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                <i className="fa-solid fa-handshake" style={{ fontSize: '12px' }}></i><span>الشريك</span>
+                            </Link>
+                        </div>
+                    )}
+
                     <Link to="/finance/containers" className={getNavClass('/finance/containers')}>
                         <i className="fa-solid fa-box-open"></i><span>أرصدة الفوارغ</span>
-                    </Link>
-                    <Link to="/inventory" className={getNavClass('/inventory')}>
-                        <i className="fa-solid fa-boxes-stacked"></i><span>المخزون والجرد</span>
                     </Link>
 
                     <div className="nav-section-label">التحليل</div>
@@ -121,7 +179,7 @@ export const ProtectedLayout = () => {
                             <input type="text" id="global-search" placeholder="بحث سريع..." />
                         </div>
                         <span className="today-date" id="today-date">
-                            {new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
                     </div>
                     <div className="header-right">

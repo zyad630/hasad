@@ -17,16 +17,21 @@ const posApi = api.injectEndpoints({
       query: (params: any) => ({ url: 'customers/', params: params && typeof params === 'object' ? params : (params ? { search: params } : {}) }),
       providesTags: ['Customers'] 
     }),
+    getSuppliers: build.query({ 
+      query: (params: any) => ({ url: 'suppliers/', params: params && typeof params === 'object' ? params : (params ? { search: params } : {}) }),
+      providesTags: ['Suppliers'] 
+    }),
+    getGlobalUnits: build.query({ query: () => 'global-units/', providesTags: ['GlobalUnits'] }),
     createSale: build.mutation({
       query: (body) => ({ url: 'sales/', method: 'POST', body }),
-      invalidatesTags: ['Shipments', 'Customers', 'Sales'],
+      invalidatesTags: ['Shipments', 'Customers', 'Sales', 'Suppliers'],
     }),
   }),
 });
 
 export const {
   useGetOpenShipmentsQuery, useGetAllItemsQuery,
-  useGetCustomersQuery, useCreateSaleMutation,
+  useGetCustomersQuery, useGetSuppliersQuery, useGetGlobalUnitsQuery, useCreateSaleMutation,
 } = posApi;
 
 interface CartLine {
@@ -55,10 +60,15 @@ export default function POSPage() {
   const { data: shipments, isLoading: loadingShipments } = useGetOpenShipmentsQuery({});
   const { data: allItemsRaw } = useGetAllItemsQuery({});
   const { data: customersRaw } = useGetCustomersQuery('');
+  const { data: suppliersRaw } = useGetSuppliersQuery('');
+  const { data: globalUnitsRaw } = useGetGlobalUnitsQuery({});
   const [createSale, { isLoading: saving }] = useCreateSaleMutation();
 
   const customers = customersRaw?.results || (Array.isArray(customersRaw) ? customersRaw : []);
+  const suppliers = suppliersRaw?.results || (Array.isArray(suppliersRaw) ? suppliersRaw : []);
+  const globalUnits = globalUnitsRaw?.results || (Array.isArray(globalUnitsRaw) ? globalUnitsRaw : []);
   
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [payType, setPayType] = useState<'cash' | 'credit'>('cash');
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [invoiceDiscount, setInvoiceDiscount] = useState<number>(0);
@@ -235,17 +245,22 @@ export default function POSPage() {
      setSelectedCustomer(cust);
      if (!cust) return;
 
-     const type = cust.effective_commission_rate?.calc_type || 'percent';
+     const type = cust.effective_commission_rate?.calc_type || "percent";
      const normalizedRate = cust.effective_commission_rate ? cust.effective_commission_rate.rate : 0;
 
      const newCart = cart.map((c) => ({
         ...c,
         commission_rate: String(normalizedRate),
-        commission_basis: 'AMOUNT',
+        commission_basis: "AMOUNT",
         commission_calc_type: type,
      }));
      setCart(newCart);
   };
+
+  const peopleList = [
+    ...customers.map((c: any) => ({ ...c, person_type: 'زبون', search_label: `${c.name} (زبون)` })),
+    ...suppliers.map((s: any) => ({ ...s, person_type: 'مزارع', search_label: `${s.name} (مزارع)` }))
+  ];
 
   const handleCheckout = async () => {
     const validLines = cart.filter(l => l.shipment_item_id && parseFloat(l.qty) > 0 && parseFloat(l.price) > 0);
@@ -255,6 +270,7 @@ export default function POSPage() {
       await createSale({
         payment_type: payType,
         customer: selectedCustomer?.id || null,
+        sale_date: saleDate,
         currency_code: currencyCode,
         exchange_rate: currencyCode === 'ILS' ? 1 : (parseFloat(exchangeRate) || 1),
         discount: invoiceDiscount,
@@ -321,18 +337,21 @@ export default function POSPage() {
           </div>
           <div style={{ flex: 1 }}>
              <SmartSearch
-                onSearch={async (q) => {
-                   const strippedQ = stripDiacritics(q).toLowerCase();
-                   return customers.filter((c:any) => 
-                      stripDiacritics(c.name).toLowerCase().includes(strippedQ) || 
-                      (c.phone && c.phone.includes(q))
-                   );
-                }}
-                placeholder="ابحث عن الزبون (اختياري للنقدي)..."
+                onSearch={async (q) => peopleList}
+                getLabel={(p: any) => p.search_label}
+                placeholder="ابحث عن (زبون، مزارع، موظف)..."
                 onSelect={handleCustomerSelect}
                 value={selectedCustomer ? selectedCustomer.name : undefined}
                 style={{ width:'100%' }}
              />
+          </div>
+          <div style={{ width: '180px' }}>
+            <input 
+              type="date" 
+              value={saleDate} 
+              onChange={(e) => setSaleDate(e.target.value)} 
+              style={{ width: '100%', height: '46px', borderRadius: '12px', background: '#e4e4e7', padding: '0 12px', fontWeight: 900, outline: 'none', border: '0', textAlign: 'center' }}
+            />
           </div>
        </div>
 
@@ -371,7 +390,7 @@ export default function POSPage() {
                             ) : (
                                <SmartSearch 
                                  id={`cart-${idx}-item_search`}
-                                 onSearch={async (q) => catalogList.filter((c:any) => c.item_name.toLowerCase().includes(stripDiacritics(q).toLowerCase()))}
+                                 onSearch={async (q) => catalogList}
                                  getLabel={(item: any) => item.item_name}
                                  placeholder="ابحث عن الصنف..."
                                  onSelect={(cItem: any) => {
@@ -404,7 +423,22 @@ export default function POSPage() {
                             <input id={`cart-${idx}-qty`} value={line.qty} onChange={(e)=>updateLine(idx,'qty',e.target.value)} onKeyDown={(e)=>handleKeyDown(e,idx,'qty')} style={{ width: '100%', padding: '8px', border: '1px solid #e4e4e7', borderRadius: '6px', textAlign: 'center', fontWeight: 900 }} inputMode="numeric" pattern="[0-9]*" dir="ltr" />
                          </td>
                          <td style={{ padding: '4px' }}>
-                            <input id={`cart-${idx}-unit`} value={line.unit} onChange={(e)=>updateLine(idx,'unit',e.target.value)} onKeyDown={(e)=>handleKeyDown(e,idx,'unit')} style={{ width: '100%', padding: '8px', border: '1px solid #e4e4e7', borderRadius: '6px', textAlign: 'center', fontWeight: 900 }} />
+                            <input
+                              id={`cart-${idx}-unit`}
+                              list="global-units-list"
+                              value={line.unit}
+                              onChange={(e)=>{
+                                const val = e.target.value;
+                                updateLine(idx,"unit",val);
+                                const unitDef = globalUnits.find((u: any) => u.name === val);
+                                if (unitDef) updateLine(idx, "has_empties", unitDef.has_empties);
+                              }}
+                              onKeyDown={(e)=>handleKeyDown(e,idx,"unit")}
+                              style={{ width: "100%", padding: "8px", border: "1px solid #e4e4e7", borderRadius: "6px", textAlign: "center", fontWeight: 900 }}
+                            />
+                            <datalist id="global-units-list">
+                              {globalUnits.map((u: any) => <option key={u.id} value={u.name} />)}
+                            </datalist>
                          </td>
                          <td style={{ padding: '4px' }}>
                             <input id={`cart-${idx}-gross_weight`} value={line.gross_weight} onChange={(e)=>updateLine(idx,'gross_weight',e.target.value)} onKeyDown={(e)=>handleKeyDown(e,idx,'gross_weight')} style={{ width: '100%', padding: '8px', border: '1px solid #e4e4e7', borderRadius: '6px', textAlign: 'center', fontWeight: 900 }} inputMode="numeric" pattern="[0-9.]*" dir="ltr" />

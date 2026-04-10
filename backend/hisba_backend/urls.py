@@ -11,7 +11,7 @@ from core import api_superadmin
 # Suppliers
 from suppliers.views import CommissionTypeViewSet, SupplierViewSet, CustomerViewSet
 # Inventory
-from inventory.views import CategoryViewSet, ItemViewSet, ShipmentViewSet
+from inventory.views import CategoryViewSet, ItemViewSet, ShipmentViewSet, GlobalUnitViewSet
 # Sales
 from sales.views import SaleViewSet, ContainerTransactionViewSet
 # Finance
@@ -44,6 +44,7 @@ router.register(r'suppliers', SupplierViewSet, basename='supplier')
 router.register(r'customers', CustomerViewSet, basename='customer')
 # Inventory
 router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r'global-units', GlobalUnitViewSet, basename='global_unit')
 router.register(r'items', ItemViewSet, basename='item')
 # Module 3 — Multi-Unit
 router.register(r'item-units', ItemUnitViewSet, basename='item_unit')

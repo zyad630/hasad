@@ -26,7 +26,7 @@ class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
             'currency_code', 'exchange_rate', 'currency_symbol', 'currency_name',
             'foreign_amount', 'base_amount', 'items'
         ]
-        read_only_fields = ['id', 'sale_date', 'foreign_amount', 'base_amount']
+        read_only_fields = ['id', 'foreign_amount', 'base_amount']
 
     def validate(self, data):
         for item_data in data.get('items', []):
@@ -52,7 +52,8 @@ class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
             currency_code=validated_data.get('currency_code', 'ILS'),
             exchange_rate=validated_data.get('exchange_rate', 1),
             items_data=items_data,
-            discount=validated_data.get('discount', 0)
+            discount=validated_data.get('discount', 0),
+            sale_date=validated_data.get('sale_date')
         )
 
 class ContainerTransactionSerializer(serializers.ModelSerializer):

@@ -23,14 +23,20 @@ export default function UnifiedStatementReport() {
   const { showToast } = useToast();
   const [targetType, setTargetType] = useState<'customer' | 'supplier'>('customer');
   const [targetId, setTargetId] = useState('');
+  
+  const today = new Date().toISOString().split('T')[0];
+  const monthStart = today.slice(0, 8) + '01';
+  const [dateFrom, setDateFrom] = useState(monthStart);
+  const [dateTo, setDateTo] = useState(today);
 
   const { data: targets, isLoading: loadingTargets } = useGetStatementTargetsQuery(targetType);
   const { data: report, isLoading, isFetching, isError, error, refetch } = useGetUnifiedStatementQuery(
-     { type: targetType, id: targetId }, 
+     { type: targetType, id: targetId, from: dateFrom, to: dateTo }, 
      { skip: !targetId }
   );
 
   const statement = report?.statement || [];
+  const openingBalance = parseFloat(report?.opening_balance || 0);
 
   const handlePrint = () => {
     window.print();
@@ -90,8 +96,8 @@ export default function UnifiedStatementReport() {
       </header>
 
       {/* Filters Form */}
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 flex flex-wrap gap-4 items-end">
-         <div className="flex-1 min-w-[200px]">
+      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+         <div>
             <label className="block text-sm font-black text-zinc-500 mb-2">نوع الحساب</label>
             <select 
               className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm"
@@ -106,7 +112,19 @@ export default function UnifiedStatementReport() {
             </select>
          </div>
 
-         <div className="flex-[2] min-w-[300px]">
+         <div>
+            <label className="block text-sm font-black text-zinc-500 mb-2">من تاريخ</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm" />
+         </div>
+
+         <div>
+            <label className="block text-sm font-black text-zinc-500 mb-2">إلى تاريخ</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm" />
+         </div>
+
+         <div>
             <label className="block text-sm font-black text-zinc-500 mb-2">اختر الـ {targetType === 'customer' ? 'تاجر' : 'مزارع'}</label>
             <select 
               className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm"
@@ -166,7 +184,21 @@ export default function UnifiedStatementReport() {
                    <th className="px-6 py-4 border-r border-zinc-100 bg-zinc-50 font-black">رصيد تراكمي (شيكل)</th>
                  </tr>
                </thead>
-               <tbody className="divide-y divide-zinc-50">
+                              <tbody className="divide-y divide-zinc-50">
+                  {dateFrom && (
+                    <tr className="bg-zinc-100/50 font-black italic">
+                      <td className="px-6 py-4 text-xs text-zinc-400" dir="ltr">{dateFrom}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-500 italic">رصيد قبل الفترة (Opening Balance)</td>
+                      <td className="px-6 py-4">---</td>
+                      <td className="px-6 py-4">---</td>
+                      <td className="px-6 py-4">---</td>
+                      <td className="px-6 py-4 border-r border-zinc-100 bg-rose-50/5">---</td>
+                      <td className="px-6 py-4 bg-emerald-50/5">---</td>
+                      <td className="px-6 py-4 border-r border-zinc-100 bg-zinc-100 font-black text-rose-600">
+                        {openingBalance.toLocaleString()} ₪
+                      </td>
+                    </tr>
+                  )}
                  {statement.map((s: any, idx: number) => {
                     const isDebit = s.entry_type === 'DR';
                     return (

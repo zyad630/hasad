@@ -146,7 +146,7 @@ export default function SettlementPage() {
                   <tbody className="divide-y divide-surface-container-high/50">
                     {settlements.map((s: any) => (
                       <tr key={s.id} className="hover:bg-emerald-50/20 transition-colors group">
-                        <td className="px-6 py-5 font-code text-sm text-zinc-500" dir="ltr">{new Date(s.settled_at).toLocaleDateString('ar-EG')}</td>
+                        <td className="px-6 py-5 font-code text-sm text-zinc-500" dir="ltr">{new Date(s.settled_at).toLocaleDateString('en-US')}</td>
                         <td className="px-6 py-5 font-bold text-emerald-900">{s.supplier_name}</td>
                         <td className="px-6 py-5 font-bold">{parseFloat(s.total_sales).toLocaleString()} <span className="text-xs font-bold">{s.currency_code === 'ILS' ? '₪' : s.currency_code}</span></td>
                         <td className="px-6 py-5 font-black text-secondary">{parseFloat(s.net_supplier).toLocaleString()} <span className="text-xs font-bold">{s.currency_code === 'ILS' ? '₪' : s.currency_code}</span></td>
@@ -297,8 +297,8 @@ export default function SettlementPage() {
             </div>
             <div className="text-left font-code text-zinc-500">
                <div>رقم الإرسالية: <strong className="text-black text-xl">#{previewData.shipment_id.substring(0,8)}</strong></div>
-               <div>تاريخ التصفية: <strong>{new Date().toLocaleDateString('ar-EG')}</strong></div>
-               <div>الوقت: <strong>{new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'})}</strong></div>
+               <div>تاريخ التصفية: <strong>{new Date().toLocaleDateString('en-US')}</strong></div>
+               <div>الوقت: <strong>{new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</strong></div>
             </div>
           </div>
           

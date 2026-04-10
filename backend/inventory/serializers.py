@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Item, UnitConversion, Shipment, ShipmentItem
+from .models import Category, Item, UnitConversion, Shipment, ShipmentItem, GlobalUnit
 
 class UnitConversionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,6 +41,12 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name']
+        read_only_fields = ['id']
+
+class GlobalUnitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GlobalUnit
+        fields = ['id', 'name', 'has_empties']
         read_only_fields = ['id']
 
 class ShipmentItemSerializer(serializers.ModelSerializer):

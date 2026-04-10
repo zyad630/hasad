@@ -83,10 +83,17 @@ input[type="number"] {
 }
 
 /* ─── Reset ─── */
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+*,*::before,*::after{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum" 1, "lnum" 1;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
 html{font-size:16px;-webkit-text-size-adjust:100%;}
 body{
-  font-family:'Tajawal',sans-serif;
+  font-family: 'Inter', 'Cairo', 'Tajawal', sans-serif;
   background:var(--bg-base);
   color:var(--text-primary);
   direction:rtl;
@@ -95,10 +102,10 @@ body{
 }
 
 /* ─── Scrollbar ─── */
-::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:var(--bg-elevated);}
-::-webkit-scrollbar-thumb{background:var(--border-hover);border-radius:4px;}
-::-webkit-scrollbar-thumb:hover{background:var(--primary);}
+::-webkit-scrollbar{width:12px;height:12px;}
+::-webkit-scrollbar-track{background:rgba(0,0,0,0.05);border-radius:10px;}
+::-webkit-scrollbar-thumb{background:var(--primary);border-radius:10px;border:3px solid transparent;background-clip:content-box;}
+::-webkit-scrollbar-thumb:hover{background:var(--primary-dark);border:2px solid transparent;background-clip:content-box;}
 
 /* ─── Floating Particles Container ─── */
 #veg-particles{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;}

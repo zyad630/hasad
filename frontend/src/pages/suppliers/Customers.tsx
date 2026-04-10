@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/ui/Toast';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +38,7 @@ const customerApi = api.injectEndpoints({
 export const { useGetCustomersQuery, useCreateCustomerMutation, useUpdateCustomerMutation, useGetCommissionTypesQuery } = customerApi;
 
 const CustomersList = () => {
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { data: customersData, isLoading } = useGetCustomersQuery({});
@@ -44,6 +46,12 @@ const CustomersList = () => {
   const [updateCustomer] = useUpdateCustomerMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  useEffect(() => {
+    if (searchParams.get('add') === '1') {
+      setIsModalOpen(true);
+    }
+  }, [searchParams]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const { data: commissionTypesData } = useGetCommissionTypesQuery({});
   const commissionTypes = commissionTypesData?.results || (Array.isArray(commissionTypesData) ? commissionTypesData : []);

@@ -285,6 +285,7 @@ class UnifiedStatementView(APIView):
     """
     Returns a unified dual-currency statement of account for a customer or supplier.
     Outputs chronological ledger entries with foreign_amount, base_amount, and exchange_rate.
+    Supports date range filtering with opening balance.
     """
     permission_classes = [IsAuthenticated]
 
@@ -293,26 +294,56 @@ class UnifiedStatementView(APIView):
             return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء كشف حساب بدون Tenant.'}, status=400)
         target_type = request.query_params.get('type')  # 'customer' or 'supplier'
         target_id = request.query_params.get('id')
+        date_from = request.query_params.get('from')
+        date_to   = request.query_params.get('to')
 
         if not target_type or not target_id:
             return Response({'error': 'type and id are required'}, status=400)
 
         from finance.models import LedgerEntry
-        entries = LedgerEntry.objects.filter(
+        from django.db.models import Sum
+
+        # 1. Calculate Opening Balance before date_from
+        opening_balance_base = Decimal('0.000')
+        if date_from:
+            pre_entries = LedgerEntry.objects.filter(
+                tenant=request.tenant,
+                account_type=target_type,
+                account_id=target_id,
+                entry_date__date__lt=date_from
+            )
+            pre_dr = pre_entries.filter(entry_type='DR').aggregate(s=Sum('base_amount'))['s'] or Decimal('0')
+            pre_cr = pre_entries.filter(entry_type='CR').aggregate(s=Sum('base_amount'))['s'] or Decimal('0')
+            
+            if target_type == 'customer':
+                opening_balance_base = pre_dr - pre_cr
+            else:
+                opening_balance_base = pre_cr - pre_dr
+
+        # 2. Get entries within range (or all if no range)
+        qs = LedgerEntry.objects.filter(
             tenant=request.tenant,
             account_type=target_type,
             account_id=target_id
-        ).order_by('entry_date', 'id')
+        )
+        if date_from:
+            qs = qs.filter(entry_date__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(entry_date__date__lte=date_to)
+        
+        entries = qs.order_by('entry_date', 'id')
 
         statement = []
-        running_base_dr = Decimal('0.000')
-        running_base_cr = Decimal('0.000')
+        running_base = opening_balance_base
 
         for e in entries:
             dr = e.base_amount if e.entry_type == 'DR' else Decimal('0')
             cr = e.base_amount if e.entry_type == 'CR' else Decimal('0')
-            running_base_dr += dr
-            running_base_cr += cr
+            
+            if target_type == 'customer':
+                running_base += (dr - cr)
+            else:
+                running_base += (cr - dr)
 
             statement.append({
                 'id': str(e.id),
@@ -325,16 +356,15 @@ class UnifiedStatementView(APIView):
                 'foreign_amount': str(e.foreign_amount),
                 'base_amount': str(e.base_amount),
                 'entry_type': e.entry_type,
-                'running_balance_base': str((running_base_dr - running_base_cr).quantize(Decimal('0.001'))) 
-                    if target_type == 'customer' 
-                    else str((running_base_cr - running_base_dr).quantize(Decimal('0.001'))),
+                'running_balance_base': str(running_base.quantize(Decimal('0.001'))),
             })
 
         return Response({
             'target_type': target_type,
             'target_id': target_id,
+            'opening_balance': str(opening_balance_base),
             'statement': statement,
-            'total_balance_base': statement[-1]['running_balance_base'] if statement else '0.000'
+            'total_balance_base': str(running_base.quantize(Decimal('0.001'))),
         })
 
 

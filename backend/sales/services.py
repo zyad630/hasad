@@ -9,7 +9,7 @@ from finance.services import LedgerService
 class SaleService:
     @staticmethod
     @transaction.atomic
-    def create_sale(tenant, user, items_data, payment_type, currency_code='ILS', exchange_rate=1, customer=None, customer_id=None, discount=0):
+    def create_sale(tenant, user, items_data, payment_type, currency_code='ILS', exchange_rate=1, customer=None, customer_id=None, discount=0, sale_date=None):
         """Accept either customer object or customer_id for flexibility."""
         if customer is not None and customer_id is None:
             customer_id = customer.id if hasattr(customer, 'id') else customer
@@ -68,16 +68,20 @@ class SaleService:
         # base_amount: equivalent in ILS (base currency)
         base_amount = (foreign_amount * xr).quantize(Decimal('0.001'), ROUND_HALF_UP)
 
-        sale = Sale.objects.create(
-            tenant=tenant, 
-            customer_id=customer_id,
-            payment_type=payment_type, 
-            created_by=user,
-            currency_code=currency_code,
-            exchange_rate=xr,
-            foreign_amount=foreign_amount,
-            base_amount=base_amount,
-        )
+        sale_args = {
+            'tenant': tenant, 
+            'customer_id': customer_id,
+            'payment_type': payment_type, 
+            'created_by': user,
+            'currency_code': currency_code,
+            'exchange_rate': xr,
+            'foreign_amount': foreign_amount,
+            'base_amount': base_amount,
+        }
+        if sale_date:
+            sale_args['sale_date'] = sale_date
+
+        sale = Sale.objects.create(**sale_args)
 
         for v in validated:
             SaleItem.objects.create(

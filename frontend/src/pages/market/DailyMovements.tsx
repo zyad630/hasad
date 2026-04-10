@@ -20,7 +20,13 @@ export const { useGetItemsQuery } = inventoryApi;
 const marketApi = api.injectEndpoints({
   endpoints: (build) => ({
     getMovements: build.query({
-      query: (date) => `market/movements/?date=${date || ''}`,
+      query: ({ from, to, date }) => {
+        let params = '';
+        if (from) params += `from=${from}&`;
+        if (to) params += `to=${to}&`;
+        if (date) params += `date=${date}&`;
+        return `market/movements/?${params}`;
+      },
       providesTags: (result: any) => 
         result ? [...result.map(({ id }: any) => ({ type: 'Movements' as const, id })), 'Movements'] : ['Movements'],
     }),
@@ -39,8 +45,11 @@ export const { useGetMovementsQuery, useCreateMovementMutation } = marketApi;
 
 export default function DailyMovements() {
   const { showToast } = useToast();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const { data: movements, isLoading } = useGetMovementsQuery(selectedDate);
+  const today = new Date().toISOString().split('T')[0];
+  const [dateFrom, setDateFrom] = useState(today);
+  const [dateTo, setDateTo] = useState(today);
+  
+  const { data: movements, isLoading } = useGetMovementsQuery({ from: dateFrom, to: dateTo });
   const { data: suppliers } = useGetSuppliersQuery({});
   const { data: customers } = useGetCustomersQuery({});
   const { data: currenciesData } = useGetCurrenciesQuery({});
@@ -186,12 +195,20 @@ export default function DailyMovements() {
               <span className="material-symbols-outlined">mic</span>
               إدخال صوتي (AI)
            </button>
-           <div className="flex bg-white p-2 rounded-2xl shadow-sm border border-zinc-100 items-center gap-4">
+           <div className="flex bg-white p-2 rounded-2xl shadow-sm border border-zinc-100 items-center gap-2">
+              <span className="text-[10px] font-black text-zinc-400 px-2">من</span>
               <input 
                 type="date" 
-                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-4"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-2 text-sm"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+              <span className="text-[10px] font-black text-zinc-400 px-2">إلى</span>
+              <input 
+                type="date" 
+                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-2 text-sm"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
               />
            </div>
         </div>

@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied
 from core.models import Tenant, CustomUser
 from suppliers.models import Customer
 from inventory.models import ShipmentItem
+import django.utils.timezone
 
 
 class PaymentType(models.TextChoices):
@@ -16,7 +17,7 @@ class Sale(models.Model):
     tenant       = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     customer     = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="الزبون / تاجر")
     created_by   = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_sales', verbose_name="بواسطة")
-    sale_date    = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ البيع")
+    sale_date    = models.DateTimeField(default=django.utils.timezone.now, verbose_name="تاريخ البيع")
     payment_type = models.CharField(max_length=10, choices=PaymentType.choices, default=PaymentType.CASH, verbose_name="طريقة الدفع")
     currency_code = models.CharField(max_length=10, default='ILS', verbose_name="العملة")
     exchange_rate  = models.DecimalField(max_digits=18, decimal_places=6, default=1, verbose_name="سعر الصرف")

@@ -49,21 +49,24 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'username', 'role', 'permissions_list', 'is_active', 'is_staff', 'tenant_name']
-        read_only_fields = ['id']
+        fields = ['id', 'username', 'first_name', 'role', 'permissions', 'permissions_list', 'is_active', 'is_staff', 'tenant_name']
+        read_only_fields = ['id', 'permissions_list']
 
     def get_tenant_name(self, obj):
         return obj.tenant.name if obj.tenant else None
 
     def get_permissions_list(self, obj):
-        # Return role-based permissions
-        role_permissions = {
-            'super_admin': ['all'],
-            'owner': ['can_sell', 'can_settle', 'can_manage_suppliers', 'can_view_reports'],
-            'cashier': ['can_sell'],
-            'admin': ['can_sell', 'can_settle', 'can_manage_suppliers', 'can_view_reports'],
-        }
-        return role_permissions.get(obj.role, [])
+        if obj.role == 'super_admin':
+            return ['all']
+            
+        role_base = {
+            'owner': ['pos', 'shipments', 'suppliers', 'customers', 'finance', 'reports', 'hr', 'settings'],
+            'cashier': ['pos'],
+        }.get(obj.role, [])
+        
+        # Merge with granular JSON permissions
+        granular = obj.permissions if isinstance(obj.permissions, list) else []
+        return list(set(role_base + granular))
 
 
 class LoginSerializer(serializers.Serializer):

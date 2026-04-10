@@ -24,6 +24,14 @@ const currencyApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Currencies'],
     }),
+    updateCurrency: build.mutation({
+      query: ({ id, ...body }) => ({
+        url: `currencies/${id}/`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['Currencies'],
+    }),
     getExchangeRates: build.query({
       query: () => 'exchange-rates/',
       providesTags: ['ExchangeRates'],
@@ -40,7 +48,7 @@ const currencyApi = api.injectEndpoints({
 });
 
 export const { 
-  useGetCurrenciesQuery, useCreateCurrencyMutation, useDeleteCurrencyMutation,
+  useGetCurrenciesQuery, useCreateCurrencyMutation, useDeleteCurrencyMutation, useUpdateCurrencyMutation,
   useGetExchangeRatesQuery, useCreateExchangeRateMutation
 } = currencyApi;
 
@@ -49,9 +57,13 @@ const CurrenciesPage = () => {
   const { data: currencies, isLoading } = useGetCurrenciesQuery({});
   const [createCurrency] = useCreateCurrencyMutation();
   const [deleteCurrency] = useDeleteCurrencyMutation();
+  const [updateCurrency] = useUpdateCurrencyMutation();
 
   const [formData, setFormData] = useState({ code: '', name: '', symbol: '' });
   const [rateData, setRateData] = useState({ currency: '', rate: '', date: new Date().toISOString().split('T')[0] });
+
+  const baseCurrency = (currencies || []).find((c: any) => c.is_base);
+  const otherCurrencies = (currencies || []).filter((c: any) => !c.is_base);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,6 +74,16 @@ const CurrenciesPage = () => {
     } catch (err) {
       showToast('خطأ في إضافة العملة', 'error');
     }
+  };
+
+  const setAsBase = async (id: string) => {
+     if (!window.confirm('هل أنت متأكد من تغيير العملة الأساسية؟ هذا سيؤثر على حسابات الميزانية.')) return;
+     try {
+       await updateCurrency({ id, is_base: true }).unwrap();
+       showToast('تم تغيير العملة الأساسية بنجاح', 'success');
+     } catch (err) {
+       showToast('خطأ في تغيير العملة', 'error');
+     }
   };
 
   const { data: exchangeRates } = useGetExchangeRatesQuery({});
@@ -146,15 +168,15 @@ const CurrenciesPage = () => {
                 <span className="material-symbols-outlined text-[1rem]">star</span>
                 العملة الأساسية (للميزانية)
               </div>
-              <h3 className="text-3xl font-black mb-1">الشيكل الإسرائيلي</h3>
-              <p className="text-emerald-100/70 font-code tracking-widest text-lg">ILS (₪)</p>
+              <h3 className="text-3xl font-black mb-1">{baseCurrency?.name || '---'}</h3>
+              <p className="text-emerald-100/70 font-code tracking-widest text-lg">{baseCurrency?.code || '---'} ({baseCurrency?.symbol || ''})</p>
             </div>
             <span className="material-symbols-outlined absolute -right-4 -bottom-4 text-[120px] text-white/10 group-hover:scale-110 transition-transform">currency_exchange</span>
           </div>
 
           <div className="grid grid-cols-1 gap-4 mt-6">
             <p className="text-sm font-bold text-on-surface-variant px-2">العملات المفعلة الأخرى</p>
-            {currencies?.map((cur: any) => (
+            {otherCurrencies?.map((cur: any) => (
               <div key={cur.id} className="bg-surface-container-lowest p-5 rounded-2xl border border-zinc-100 flex items-center justify-between group hover:border-emerald-200 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-zinc-50 flex items-center justify-center font-bold text-lg text-emerald-900 shadow-inner group-hover:bg-emerald-50">
@@ -165,14 +187,23 @@ const CurrenciesPage = () => {
                     <div className="text-xs text-on-surface-variant font-code">{cur.code}</div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => deleteCurrency(cur.id)}
-                  className="p-3 text-zinc-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
-                  <span className="material-symbols-outlined">delete_forever</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setAsBase(cur.id)}
+                      title="تعيين كعملة أساسية"
+                      className="p-3 text-zinc-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                      <span className="material-symbols-outlined">star_rate</span>
+                    </button>
+                    <button 
+                      onClick={() => deleteCurrency(cur.id)}
+                      title="حذف العملة"
+                      className="p-3 text-zinc-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
+                      <span className="material-symbols-outlined">delete_forever</span>
+                    </button>
+                </div>
               </div>
             ))}
-            {currencies?.length === 0 && (
+            {otherCurrencies?.length === 0 && (
               <div className="text-center py-12 bg-zinc-50 rounded-3xl border border-dashed border-zinc-200 text-zinc-400">
                 <span className="material-symbols-outlined text-4xl block mb-2">info</span>
                 <p>لا توجد عملات إضافية مفعلة حالياً.</p>

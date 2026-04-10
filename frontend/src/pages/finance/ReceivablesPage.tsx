@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/baseApi';
 import { VegetableLoader } from '../../components/ui/VegetableLoader';
 
@@ -22,8 +23,14 @@ const PARTY_TABS = [
 ];
 
 export default function ReceivablesPage() {
-  const [party, setParty] = useState('all');
+  const [searchParams] = useSearchParams();
+  const [party, setParty] = useState(searchParams.get('party') || 'all');
   const [currency, setCurrency] = useState('');
+
+  useEffect(() => {
+    const p = searchParams.get('party');
+    if (p) setParty(p);
+  }, [searchParams]);
 
   const { data, isLoading, isError, error, refetch } = useGetReceivablesQuery({ party, currency: currency || undefined });
 

@@ -43,7 +43,14 @@ function mapEnToArabicKeyboard(str: string): string {
 }
 
 function normalizeForSearch(str: string): string {
-  return stripDiacritics(String(str).toLowerCase());
+  let s = stripDiacritics(String(str).toLowerCase());
+  // Normalize Alefs
+  s = s.replace(/[أإآٱ]/g, 'ا');
+  // Normalize Yaa
+  s = s.replace(/ى/g, 'ي');
+  // Normalize Taa Marbuta
+  s = s.replace(/ة/g, 'ه');
+  return s;
 }
 
 function getSearchNeedles(q: string): string[] {
@@ -92,16 +99,27 @@ export function SmartSearch({
       const needles = getSearchNeedles(q);
       const filtered = raw.filter((item: any) => {
         const label = normalizeForSearch(getLabel(item));
-        return needles.some((n) => label.includes(n));
+        const words = label.split(/\s+/);
+        return needles.some((n) => words.some(w => w.startsWith(n)));
       });
       filtered.sort((a: any, b: any) => {
         const la = normalizeForSearch(getLabel(a));
         const lb = normalizeForSearch(getLabel(b));
-        const n0 = needles[0];
-        const eq = la === n0 ? -1 : lb === n0 ? 1 : 0;
-        if (eq) return eq;
-        const sw = la.startsWith(n0) ? -1 : lb.startsWith(n0) ? 1 : 0;
-        return sw;
+        
+        // Priority 1: Exact match with any needle
+        const aExact = needles.some(n => la === n);
+        const bExact = needles.some(n => lb === n);
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+
+        // Priority 2: Starts with any needle
+        const aStarts = needles.some(n => la.startsWith(n));
+        const bStarts = needles.some(n => lb.startsWith(n));
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+
+        // Priority 3: Alphabetical
+        return la.localeCompare(lb, 'ar');
       });
       const sliced = filtered.slice(0, 10);
       setResults(sliced);

@@ -21,12 +21,25 @@ class BaseUnit(models.TextChoices):
     SACK = 'sack', 'شوال'
     BUNCH = 'bunch', 'ربطة'
 
+class GlobalUnit(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100, verbose_name="اسم الوحدة")
+    has_empties = models.BooleanField(default=False, verbose_name="يوجد بها فوارغ (تُسترجع)؟")
+
+    class Meta:
+        verbose_name = 'الوحدة'
+        verbose_name_plural = 'الوحدات المحددة'
+
+    def __str__(self):
+        return self.name
+
 class Item(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="التصنيف")
     name = models.CharField(max_length=200, verbose_name="اسم الصنف")
-    base_unit = models.CharField(max_length=10, choices=BaseUnit.choices, default=BaseUnit.KG, verbose_name="وحدة القياس")
+    base_unit = models.CharField(max_length=50, default='kg', verbose_name="وحدة القياس")
     waste_percentage = models.DecimalField(max_digits=5, decimal_places=3, default=0.00, verbose_name="نسبة الهالك (%)")
     box_price = models.DecimalField(max_digits=10, decimal_places=3, default=0.00, verbose_name="ثمن الكرتون (افتراضي)")
     tare_weight = models.DecimalField(max_digits=8, decimal_places=3, default=0.0, verbose_name="وزن الفارغ / التارة (كجم لكل وحدة)")

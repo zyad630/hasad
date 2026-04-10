@@ -101,7 +101,8 @@ const CustomersList = () => {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    setFormData({ name: '', phone: '', customer_type: 'trader', credit_limit: 0 });
+    setEditingId(null);
+    setFormData({ name: '', phone: '', customer_type: 'trader', credit_limit: 0, commission_type: '', commission_rate: 0 });
   };
 
   if (isLoading) return <VegetableLoader text="جاري تحميل كشوفات الزبائن والتجار..." fullScreen />;

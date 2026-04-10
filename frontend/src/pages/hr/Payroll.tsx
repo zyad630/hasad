@@ -7,7 +7,7 @@ const hrApi = api.injectEndpoints({
   endpoints: (build) => ({
     getEmployees: build.query({
       query: () => 'employees/',
-      providesTags: ['Employees'] as any,
+      providesTags: ['Employees'],
     }),
     createEmployee: build.mutation({
       query: (body) => ({
@@ -15,7 +15,7 @@ const hrApi = api.injectEndpoints({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Employees'] as any,
+      invalidatesTags: ['Employees'],
     }),
     runPayroll: build.mutation({
       query: (body) => ({
@@ -23,7 +23,7 @@ const hrApi = api.injectEndpoints({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Employees', 'Cash'] as any,
+      invalidatesTags: ['Employees', 'Cash'],
     }),
   }),
 });

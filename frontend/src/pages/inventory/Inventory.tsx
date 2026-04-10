@@ -28,7 +28,7 @@ const inventoryApi = api.injectEndpoints({
     }),
     getUnits: build.query({
       query: () => 'global-units/',
-      providesTags: ['GlobalUnits'] as any,
+      providesTags: ['GlobalUnits'],
     }),
   }),
 });

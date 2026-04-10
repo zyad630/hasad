@@ -13,7 +13,7 @@ const reportsApi = api.injectEndpoints({
     getDashboard: build.query({
       query: () => 'reports/dashboard/',
       // Re-fetches whenever any of these tags are invalidated (sale, cash, market movement...)
-      providesTags: ['Sales', 'Shipments', 'Cash', 'Movements', 'Settlements', 'Customers', 'Suppliers'] as any,
+      providesTags: ['Sales', 'Shipments', 'Cash', 'Movements', 'Settlements', 'Customers', 'Suppliers'],
     }),
   }),
 });

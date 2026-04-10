@@ -6,11 +6,11 @@ const returnsApi = api.injectEndpoints({
   endpoints: (build) => ({
     getSaleReturns: build.query({
       query: () => 'sale-returns/',
-      providesTags: ['Sales'] as any,
+      providesTags: ['Sales'],
     }),
     getPurchaseReturns: build.query({
       query: () => 'purchase-returns/',
-      providesTags: ['Shipments'] as any,
+      providesTags: ['Shipments'],
     }),
   }),
 });

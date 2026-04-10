@@ -199,7 +199,11 @@ CELERY_TASK_SERIALIZER = 'json'
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    CORS_ALLOWED_ORIGINS = [
+        "https://hasaadd.netlify.app",
+    ] + os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    # Clean up empty strings if any
+    CORS_ALLOWED_ORIGINS = [o for o in CORS_ALLOWED_ORIGINS if o]
 
 # ─── Production Security Headers — only when DEBUG=False ─────────────────────
 if not DEBUG:

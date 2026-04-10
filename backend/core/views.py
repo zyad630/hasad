@@ -110,3 +110,61 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.tenant)
+
+
+from .models import Currency, CurrencyExchangeRate
+from .serializers import CurrencySerializer, CurrencyExchangeRateSerializer
+
+class CurrencyViewSet(viewsets.ModelViewSet):
+    serializer_class = CurrencySerializer
+
+    def get_queryset(self):
+        return Currency.objects.filter(tenant=self.request.tenant)
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.tenant)
+
+class CurrencyExchangeRateViewSet(viewsets.ModelViewSet):
+    serializer_class = CurrencyExchangeRateSerializer
+
+    def get_queryset(self):
+        return CurrencyExchangeRate.objects.filter(tenant=self.request.tenant).order_by('-date')
+
+    def perform_create(self, serializer):
+        from finance.services import LedgerService
+        tenant = self.request.tenant
+        
+        # Determine previous rate for this currency
+        currency = serializer.validated_data.get('currency')
+        new_rate = serializer.validated_data.get('rate')
+        last_rate_obj = CurrencyExchangeRate.objects.filter(
+            tenant=tenant, currency=currency
+        ).order_by('-date').first()
+        
+        # Save the new rate
+        instance = serializer.save(tenant=tenant, created_by=self.request.user)
+
+        if last_rate_obj and last_rate_obj.rate != new_rate:
+            from suppliers.models import Supplier, Customer
+            # 1. Adjust Suppliers
+            for supp in Supplier.objects.filter(tenant=tenant):
+                from finance.models import LedgerEntry
+                fbal = LedgerEntry.get_balance(tenant, 'supplier', supp.id, currency.code)
+                if float(fbal) != 0:
+                    LedgerService.record_forex_adjustment(
+                        tenant=tenant, account_type='supplier', account_id=supp.id,
+                        currency_code=currency.code, original_rate=last_rate_obj.rate,
+                        new_rate=new_rate, foreign_balance=fbal, ref_id=str(instance.id),
+                        user=self.request.user
+                    )
+            # 2. Adjust Customers
+            for cust in Customer.objects.filter(tenant=tenant):
+                from finance.models import LedgerEntry
+                fbal = LedgerEntry.get_balance(tenant, 'customer', cust.id, currency.code)
+                if float(fbal) != 0:
+                    LedgerService.record_forex_adjustment(
+                        tenant=tenant, account_type='customer', account_id=cust.id,
+                        currency_code=currency.code, original_rate=last_rate_obj.rate,
+                        new_rate=new_rate, foreign_balance=fbal, ref_id=str(instance.id),
+                        user=self.request.user
+                    )

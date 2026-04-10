@@ -37,8 +37,8 @@ export default function ExpensesPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
-    expense_type: 'misc',
-    amount: '',
+    foreign_amount: '',
+    exchange_rate: '1',
     currency_code: 'ILS',
     description: '',
     expense_date: new Date().toISOString().split('T')[0],
@@ -48,18 +48,22 @@ export default function ExpensesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const famt = parseFloat(formData.foreign_amount) || 0;
+      const xr = parseFloat(formData.exchange_rate) || 1;
       await createExpense({
-        ...formData,
+        currency_code: formData.currency_code,
+        foreign_amount: famt,
+        exchange_rate: xr,
+        base_amount: parseFloat((famt * xr).toFixed(3)),
+        description: formData.description,
+        expense_date: formData.expense_date,
         shipment: formData.shipment || null,
-        amount: parseFloat(formData.amount)
       }).unwrap();
       setIsModalOpen(false);
-      setFormData({
-        expense_type: 'misc', amount: '', currency_code: 'ILS', description: '', expense_date: new Date().toISOString().split('T')[0], shipment: ''
-      });
+      setFormData({ foreign_amount: '', exchange_rate: '1', currency_code: 'ILS', description: '', expense_date: new Date().toISOString().split('T')[0], shipment: '' });
       showToast('تم التسجيل بنجاح', 'success');
-    } catch (err) {
-      showToast('حدث خطأ في العملية', 'error');
+    } catch (err: any) {
+      showToast(err?.data ? JSON.stringify(err.data) : 'حدث خطأ في العملية', 'error');
     }
   };
 
@@ -111,13 +115,18 @@ export default function ExpensesPage() {
                   <td className="px-6 py-5 font-bold text-zinc-500" dir="ltr">{exp.expense_date}</td>
                   <td className="px-6 py-5">
                     <span className="px-3 py-1.5 bg-zinc-100 text-on-surface rounded-xl text-xs font-black">
-                      {getExpenseLabel(exp.expense_type)}
+                      {exp.description || exp.category || 'مصروف'}
                     </span>
                   </td>
                   <td className="px-6 py-5 text-left">
                     <div className="font-black text-lg text-rose-700">
-                      {parseFloat(exp.amount).toLocaleString()} <span className="text-xs font-bold">{exp.currency_code === 'ILS' ? '₪' : exp.currency_code}</span>
+                      {parseFloat(exp.foreign_amount).toLocaleString()} <span className="text-xs font-bold">{exp.currency_code === 'ILS' ? '₪' : exp.currency_code}</span>
                     </div>
+                    {exp.currency_code !== 'ILS' && (
+                      <div className="text-[10px] text-zinc-400 font-bold">
+                        = {parseFloat(exp.base_amount).toLocaleString()} ₪
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-5 font-bold text-on-surface">{exp.description || '-'}</td>
                   <td className="px-6 py-5">
@@ -150,8 +159,12 @@ export default function ExpensesPage() {
             <form onSubmit={handleSubmit} className="p-10 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">المبلغ</label>
-                  <input type="number" step="0.01" className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl h-14 px-5 text-xl font-black text-rose-700 focus:border-rose-600 transition-all outline-none" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} autoFocus />
+                  <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">المبلغ ({formData.currency_code === 'ILS' ? '₪' : formData.currency_code})</label>
+                  <input type="number" step="0.001" className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl h-14 px-5 text-xl font-black text-rose-700 focus:border-rose-600 transition-all outline-none" required value={formData.foreign_amount} onChange={e => {
+                    const famt = parseFloat(e.target.value) || 0;
+                    const xr = parseFloat(formData.exchange_rate) || 1;
+                    setFormData({...formData, foreign_amount: e.target.value});
+                  }} autoFocus />
                 </div>
                 <div>
                   <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">التاريخ</label>
@@ -160,11 +173,11 @@ export default function ExpensesPage() {
               </div>
 
               <div>
-                 <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">العملة</label>
+                 <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">العملة وسعر الصرف</label>
                  <div className="flex gap-2">
                     <button 
                       type="button"
-                      onClick={() => setFormData({...formData, currency_code: 'ILS'})}
+                      onClick={() => setFormData({...formData, currency_code: 'ILS', exchange_rate: '1'})}
                       className={`flex-1 h-12 rounded-xl text-xs font-black transition-all ${formData.currency_code === 'ILS' ? 'bg-emerald-600 text-white shadow-md' : 'bg-zinc-50 text-zinc-400 border border-zinc-100'}`}
                     >شيكل (₪)</button>
                     {currencies?.map((cur: any) => (
@@ -176,6 +189,13 @@ export default function ExpensesPage() {
                       >{cur.name.split(' ')[0]}</button>
                     ))}
                  </div>
+                 {formData.currency_code !== 'ILS' && (
+                   <div className="mt-2">
+                     <label className="block text-xs font-black text-zinc-400 mb-1 uppercase">سعر الصرف (مقابل الشيكل)</label>
+                     <input type="number" step="0.0001" className="w-full bg-amber-50 border-2 border-amber-200 rounded-xl h-12 px-4 font-bold text-sm outline-none" value={formData.exchange_rate} onChange={e => setFormData({...formData, exchange_rate: e.target.value})} />
+                     {formData.foreign_amount && <p className="text-xs text-zinc-400 mt-1 font-bold">= {(parseFloat(formData.foreign_amount||'0') * parseFloat(formData.exchange_rate||'1')).toFixed(3)} ₪</p>}
+                   </div>
+                 )}
               </div>
 
               <div>

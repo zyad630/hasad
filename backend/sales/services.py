@@ -9,19 +9,19 @@ from finance.services import LedgerService
 class SaleService:
     @staticmethod
     @transaction.atomic
-    def create_sale(tenant, user, items_data, payment_type, customer=None, customer_id=None):
+    def create_sale(tenant, user, items_data, payment_type, currency_code='ILS', exchange_rate=1, customer=None, customer_id=None, discount=0):
         """Accept either customer object or customer_id for flexibility."""
         if customer is not None and customer_id is None:
             customer_id = customer.id if hasattr(customer, 'id') else customer
         validated = []
 
+        total_discount = Decimal(str(discount or 0))
+
         for item_data in items_data:
-            # Support both dict key styles (from serializer or direct)
             si_id = item_data.get('shipment_item_id') or (
                 item_data['shipment_item'].pk if hasattr(item_data.get('shipment_item'), 'pk')
                 else item_data.get('shipment_item')
             )
-            # Lock the row — no other transaction can read/write until this one commits
             try:
                 shipment_item = ShipmentItem.objects.select_for_update(nowait=False).get(
                     id=si_id,
@@ -42,45 +42,71 @@ class SaleService:
                     'quantity': f'المتوفر {shipment_item.remaining_qty} فقط'
                 })
 
-            subtotal = (qty * price).quantize(Decimal('0.01'), ROUND_HALF_UP)
-            validated.append((shipment_item, qty, subtotal))
+            subtotal = (qty * price).quantize(Decimal('0.001'), ROUND_HALF_UP)
+            
+            validated.append({
+                'shipment_item': shipment_item,
+                'qty': qty,
+                'subtotal': subtotal,
+                'commission_rate': Decimal(str(item_data.get('commission_rate', 0))),
+                'discount': Decimal(str(item_data.get('discount', 0))),
+                'gross_weight': Decimal(str(item_data.get('gross_weight', 0))),
+                'net_weight': Decimal(str(item_data.get('net_weight', item_data.get('quantity', 0)))),
+                'containers_out': int(item_data.get('empties_count', 0) or 0)
+            })
 
-        # All validation passed — now write
+        # Calculate final total — 3 decimal places (BRD requirement)
+        total_subtotal = Decimal('0')
+        total_commission = Decimal('0')
+        for v in validated:
+            total_subtotal += v['subtotal']
+            total_commission += (v['subtotal'] * (v['commission_rate'] / Decimal('100'))).quantize(Decimal('0.001'), ROUND_HALF_UP)
+            
+        # foreign_amount: invoice amount in the transaction currency
+        foreign_amount = (total_subtotal + total_commission - total_discount).quantize(Decimal('0.001'), ROUND_HALF_UP)
+        xr = Decimal(str(exchange_rate))
+        # base_amount: equivalent in ILS (base currency)
+        base_amount = (foreign_amount * xr).quantize(Decimal('0.001'), ROUND_HALF_UP)
+
         sale = Sale.objects.create(
             tenant=tenant, 
             customer_id=customer_id,
             payment_type=payment_type, 
             created_by=user,
-            total_amount=sum(s for _, _, s in validated).quantize(Decimal('0.01'), ROUND_HALF_UP),
+            currency_code=currency_code,
+            exchange_rate=xr,
+            foreign_amount=foreign_amount,
+            base_amount=base_amount,
         )
 
-        for shipment_item, qty, subtotal in validated:
+        for v in validated:
             SaleItem.objects.create(
                 sale=sale, 
-                shipment_item=shipment_item,
-                quantity=qty, 
-                unit_price=subtotal/qty,
-                subtotal=subtotal
+                shipment_item=v['shipment_item'],
+                quantity=v['qty'], 
+                unit_price=v['subtotal']/v['qty'] if v['qty'] > 0 else 0,
+                subtotal=v['subtotal'],
+                commission_rate=v['commission_rate'],
+                discount=v['discount'],
+                gross_weight=v['gross_weight'],
+                net_weight=v['net_weight'],
+                containers_out=v['containers_out']
             )
-            if hasattr(shipment_item, 'remaining_qty'):
-                ShipmentItem.objects.filter(pk=shipment_item.pk).update(
-                    remaining_qty=F('remaining_qty') - qty  # atomic DB-level update
+            if hasattr(v['shipment_item'], 'remaining_qty'):
+                ShipmentItem.objects.filter(pk=v['shipment_item'].pk).update(
+                    remaining_qty=F('remaining_qty') - v['qty']
                 )
 
-        # Verify no remaining_qty went negative (final safety check)
-        # Using a list comprehension safely
-        ids = [s.pk for s, _, _ in validated if hasattr(s, 'remaining_qty')]
+        ids = [v['shipment_item'].pk for v in validated if hasattr(v['shipment_item'], 'remaining_qty')]
         if ids and ShipmentItem.objects.filter(pk__in=ids, remaining_qty__lt=0).exists():
-            raise IntegrityError("CRITICAL: remaining_qty went negative — transaction rolled back")
+            raise IntegrityError("CRITICAL: remaining_qty went negative")
 
-        # Update legacy credit_balance if payment is credit
         if payment_type == 'credit' and customer_id:
             from suppliers.models import Customer
+            # Use base_amount (ILS) for credit_balance tracking
             Customer.objects.filter(pk=customer_id).update(
-                credit_balance=F('credit_balance') + sale.total_amount
+                credit_balance=F('credit_balance') + sale.base_amount
             )
 
-        # Create Ledger Entries
         LedgerService.record_sale(sale)
-        
         return sale

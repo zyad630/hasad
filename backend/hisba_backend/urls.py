@@ -3,7 +3,10 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 # Core
-from core.views import LoginView, MeView, ChangePasswordView, TenantViewSet, RegisterTenantView, UserViewSet
+from core.views import (
+    LoginView, MeView, ChangePasswordView, TenantViewSet, 
+    RegisterTenantView, UserViewSet, CurrencyViewSet, CurrencyExchangeRateViewSet
+)
 from core import api_superadmin
 # Suppliers
 from suppliers.views import CommissionTypeViewSet, SupplierViewSet, CustomerViewSet
@@ -12,7 +15,10 @@ from inventory.views import CategoryViewSet, ItemViewSet, ShipmentViewSet
 # Sales
 from sales.views import SaleViewSet, ContainerTransactionViewSet
 # Finance
-from finance.views import SettlementViewSet, ExpenseViewSet, CashTransactionViewSet
+from finance.views import (
+    SettlementViewSet, ExpenseViewSet, CashTransactionViewSet,
+    AccountGroupViewSet, AccountViewSet
+)
 # Market
 from market.views import DailyMovementViewSet
 # Modules 3-7
@@ -23,12 +29,14 @@ from market.extra_views import (
     AdvancedCheckViewSet,
 )
 # Reports
-from reports.views import DashboardView, SalesReportView, AgingReportView
+from reports.views import DashboardView, SalesReportView, AgingReportView, UnifiedStatementView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'tenants', TenantViewSet, basename='tenant')
+router.register(r'currencies', CurrencyViewSet, basename='currency')
+router.register(r'exchange-rates', CurrencyExchangeRateViewSet, basename='exchange_rate')
 # Module 1
 router.register(r'commission-types', CommissionTypeViewSet, basename='commission_type')
 # Suppliers & Customers
@@ -53,6 +61,8 @@ router.register(r'purchase-returns', PurchaseReturnViewSet, basename='purchase_r
 router.register(r'settlements', SettlementViewSet, basename='settlement')
 router.register(r'expenses', ExpenseViewSet, basename='expense')
 router.register(r'cash-transactions', CashTransactionViewSet, basename='cash_transaction')
+router.register(r'account-groups', AccountGroupViewSet, basename='account_group')
+router.register(r'accounts', AccountViewSet, basename='account')
 # Module 6 — HR & Payroll
 router.register(r'employees', EmployeeViewSet, basename='employee')
 router.register(r'payroll-runs', PayrollRunViewSet, basename='payroll_run')
@@ -75,6 +85,7 @@ urlpatterns = [
     path('api/reports/dashboard/', DashboardView.as_view(), name='reports_dashboard'),
     path('api/reports/sales/', SalesReportView.as_view(), name='reports_sales'),
     path('api/reports/aging/', AgingReportView.as_view(), name='reports_aging'),
+    path('api/reports/unified-statement/', UnifiedStatementView.as_view(), name='unified_statement'),
 
     # API
     path('api/', include(router.urls)),

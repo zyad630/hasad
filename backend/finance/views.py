@@ -7,9 +7,40 @@ from django.db.models import Sum
 from core.permissions import IsManagerOrOwner, IsSuperAdmin, IsCashierOrAbove
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Settlement, Expense, CashTransaction
-from .serializers import SettlementSerializer, ExpenseSerializer, CashTransactionSerializer, SettleShipmentSerializer
+from .models import Settlement, Expense, CashTransaction, AccountGroup, Account
+from .serializers import SettlementSerializer, ExpenseSerializer, CashTransactionSerializer, SettleShipmentSerializer, AccountGroupSerializer, AccountSerializer
 from inventory.models import Shipment
+
+class AccountGroupViewSet(viewsets.ModelViewSet):
+    serializer_class = AccountGroupSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['name', 'code']
+    filterset_fields = ['account_type', 'parent']
+    permission_classes = [IsAuthenticated, IsManagerOrOwner]
+
+    def get_queryset(self):
+        # By default, maybe return only top-level groups (parent=None) to build a tree
+        qs = AccountGroup.objects.filter(tenant=self.request.tenant)
+        tree = self.request.query_params.get('tree', 'false').lower() == 'true'
+        if tree:
+            return qs.filter(parent__isnull=True)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.tenant)
+
+class AccountViewSet(viewsets.ModelViewSet):
+    serializer_class = AccountSerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['name', 'code']
+    filterset_fields = ['group', 'is_active']
+    permission_classes = [IsAuthenticated, IsManagerOrOwner]
+
+    def get_queryset(self):
+        return Account.objects.filter(tenant=self.request.tenant)
+
+    def perform_create(self, serializer):
+        serializer.save(tenant=self.request.tenant)
 
 
 class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
@@ -108,14 +139,16 @@ class SettlementViewSet(viewsets.ReadOnlyModelViewSet):
 class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['shipment', 'expense_type', 'expense_date']
-    ordering_fields = ['expense_date', 'amount']
+    filterset_fields = ['shipment', 'expense_date']
+    ordering_fields = ['expense_date', 'base_amount']
 
     def get_queryset(self):
         return Expense.objects.filter(tenant=self.request.tenant)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.tenant)
+        expense = serializer.save(tenant=self.request.tenant)
+        from .services import LedgerService
+        LedgerService.record_general_expense(expense, user=self.request.user)
 
 
 class CashTransactionViewSet(viewsets.ModelViewSet):
@@ -134,24 +167,32 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='voucher')
     def create_voucher(self, request):
         """
-        Creates multiple cash/check transactions in one go.
-        Expected data: {
-            'tx_type': 'in'/'out',
+        Creates multiple cash/check transactions and updates the Ledger.
+        Data: {
+            'tx_type': 'in' (Receipt) or 'out' (Payment),
+            'target_type': 'customer' or 'supplier',
+            'target_id': '...',
             'currency_code': 'ILS',
             'description': '...',
             'entries': [
                 {'type': 'cash', 'amount': 100},
-                {'type': 'check', 'amount': 200, 'check_number': '123', 'bank_name': 'Bank X', 'due_date': '2026-06-05'}
+                {'type': 'check', 'amount': 200, ...}
             ]
         }
         """
         from django.db import transaction
         from .models import Check
+        from .services import LedgerService
+        from core.models import DocumentSequence
+        from suppliers.models import Customer, Supplier
         
         data = request.data
         entries = data.get('entries', [])
         tx_type = data.get('tx_type', 'in')
+        target_type = data.get('target_type') # 'customer' or 'supplier'
+        target_id = data.get('target_id')
         currency_code = data.get('currency_code', 'ILS')
+        exchange_rate = data.get('exchange_rate', 1)
         description = data.get('description', '')
         
         if not entries:
@@ -159,8 +200,16 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
             
         try:
             with transaction.atomic():
+                prefix = 'RC' if tx_type == 'in' else 'PY'
+                import random
+                voucher_num = f"{prefix}-{random.randint(1000, 9999)}" 
+                
+                total_amount = 0
                 created_items = []
+                
                 for entry in entries:
+                    amt = entry.get('amount', 0)
+                    total_amount += float(amt)
                     is_check = entry.get('type') == 'check'
                     check_obj = None
                     
@@ -170,24 +219,56 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
                             check_number=entry.get('check_number'),
                             bank_name=entry.get('bank_name'),
                             due_date=entry.get('due_date'),
-                            amount=entry.get('amount'),
                             currency_code=currency_code,
-                            drawer_name=data.get('received_from')
+                            foreign_amount=amt,
+                            exchange_rate=exchange_rate,
+                            base_amount=round(float(amt) * float(exchange_rate), 3),
+                            drawer_name=data.get('received_from') or description
                         )
                     
                     tx = CashTransaction.objects.create(
                         tenant=request.tenant,
                         tx_type=tx_type,
+                        exchange_rate=exchange_rate,
                         currency_code=currency_code,
-                        amount=entry.get('amount'),
+                        foreign_amount=amt,
+                        base_amount=round(float(amt) * float(exchange_rate), 3),
                         is_check=is_check,
                         check_ref=check_obj,
-                        description=description,
-                        reference_type='voucher'
+                        description=f"{description}",
+                        reference_type=f"{target_type}_voucher" if target_type else 'manual',
+                        reference_id=target_id
                     )
                     created_items.append(tx)
+
+                # ── CORE CONNECTIVITY: Update the Ledger ──
+                if target_type == 'customer' and target_id:
+                    customer = Customer.objects.get(id=target_id, tenant=request.tenant)
+                    if tx_type == 'in': # Customer paying us
+                        LedgerService.record_customer_collection(request.tenant, customer, total_amount, user=request.user, reference_id=tx.id, currency_code=currency_code)
+                    else: # We paying customer (return/refund)
+                         LedgerService._double_entry(
+                            tenant=request.tenant, dr_type='customer', dr_id=customer.id,
+                            cr_type='cash', cr_id=request.tenant.id, amount=total_amount,
+                            currency_code=currency_code, exchange_rate=exchange_rate,
+                            ref_type='customer_refund', ref_id=tx.id, description=f"رد مبلغ للعميل: {customer.name}",
+                            user=request.user
+                        )
                 
-                return Response({'message': 'تم حفظ السند بنجاح', 'count': len(created_items)}, status=status.HTTP_201_CREATED)
+                elif target_type == 'supplier' and target_id:
+                    supplier = Supplier.objects.get(id=target_id, tenant=request.tenant)
+                    if tx_type == 'out': # Paying supplier
+                        LedgerService.record_supplier_payment(request.tenant, supplier, total_amount, user=request.user, reference_id=tx.id, currency_code=currency_code)
+                    else: # Supplier paying us (refund/credit)
+                        LedgerService._double_entry(
+                            tenant=request.tenant, dr_type='cash', dr_id=request.tenant.id,
+                            cr_type='supplier', cr_id=supplier.id, amount=total_amount,
+                            currency_code=currency_code, exchange_rate=exchange_rate,
+                            ref_type='supplier_refund', ref_id=tx.id, description=f"استرداد من المورد: {supplier.name}",
+                            user=request.user
+                        )
+
+                return Response({'message': 'تم حفظ السند وترحيله للحسابات بنجاح', 'voucher_number': voucher_num}, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -201,8 +282,8 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
         
         for cur in active_currencies:
             agg = CashTransaction.objects.filter(tenant=request.tenant, currency_code=cur.code).aggregate(
-                total_in=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='in')),
-                total_out=Sum('amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='out')),
+                total_in=Sum('foreign_amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='in')),
+                total_out=Sum('foreign_amount', filter=__import__('django.db.models', fromlist=['Q']).Q(tx_type='out')),
             )
             total_in = agg['total_in'] or Decimal('0.00')
             total_out = agg['total_out'] or Decimal('0.00')
@@ -214,3 +295,11 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
             })
             
         return Response({'balances': results})
+
+    @action(detail=False, methods=['get'], url_path='uncleared-checks')
+    def uncleared_checks(self, request):
+        from .models import Check
+        checks = Check.objects.filter(tenant=request.tenant, status='pending').values(
+            'id', 'check_number', 'bank_name', 'foreign_amount', 'due_date', 'currency_code'
+        )
+        return Response({'checks': list(checks)})

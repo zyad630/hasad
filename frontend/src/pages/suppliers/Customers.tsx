@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useToast } from '../../components/ui/Toast';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/baseApi';
 import { VegetableLoader } from '../../components/ui/VegetableLoader';
 
 const customerApi = api.injectEndpoints({
   endpoints: (build) => ({
     getCustomers: build.query({
-      query: () => 'customers/',
+      query: (params: any) => ({ url: 'customers/', params: params && typeof params === 'object' && Object.keys(params).length > 0 ? params : undefined }),
       providesTags: ['Customers'],
     }),
     createCustomer: build.mutation({
@@ -33,6 +34,7 @@ export const { useGetCustomersQuery, useCreateCustomerMutation, useUpdateCustome
 
 const CustomersList = () => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const { data: customersData, isLoading } = useGetCustomersQuery({});
   const [createCustomer] = useCreateCustomerMutation();
   const [updateCustomer] = useUpdateCustomerMutation();
@@ -63,12 +65,15 @@ const CustomersList = () => {
     try {
       if (editingId) {
         await updateCustomer({ id: editingId, ...formData }).unwrap();
+        showToast('تم تعديل بيانات الزبون بنجاح', 'success');
       } else {
         await createCustomer(formData).unwrap();
+        showToast('تم إضافة الزبون بنجاح ✓', 'success');
       }
       closeModal();
-    } catch(err) {
-      showToast('خطأ في العملية', 'error');
+    } catch(err: any) {
+      const detail = err?.data ? JSON.stringify(err.data) : 'تحقق من البيانات';
+      showToast(`خطأ: ${detail}`, 'error');
     }
   };
 
@@ -85,7 +90,6 @@ const CustomersList = () => {
 
   const closeModal = () => {
     setIsModalOpen(false);
-    setEditingId(null);
     setFormData({ name: '', phone: '', customer_type: 'trader', credit_limit: 0 });
   };
 
@@ -135,8 +139,10 @@ const CustomersList = () => {
           <h3 className="text-3xl font-black text-on-surface">{customers.length}</h3>
         </div>
         <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 border-r-4 border-r-indigo-500 flex flex-col justify-center">
-           <p className="text-zinc-400 text-[10px] font-black mb-1 uppercase tracking-tighter">التحصيل</p>
-           <div className="text-emerald-600 font-black text-xs">مستقر بنسبة 95%</div>
+           <p className="text-zinc-400 text-[10px] font-black mb-1 uppercase tracking-tighter">إجمالي حدود الائتمان</p>
+           <div className="text-indigo-600 font-black text-2xl" dir="ltr">
+             {customers.reduce((sum: number, c: any) => sum + (parseFloat(c.credit_limit) || 0), 0).toLocaleString()} <span className="text-sm">₪</span>
+           </div>
         </div>
       </div>
 
@@ -165,7 +171,7 @@ const CustomersList = () => {
                   </td>
                   <td className="px-6 py-6">
                     <span className="px-4 py-1 bg-zinc-100 text-zinc-600 rounded-xl text-[10px] font-black uppercase">
-                       {c.customer_type === 'trader' ? 'تاجر جملة' : 'محل تجزئة'}
+                       {c.customer_type === 'trader' ? 'تاجر جملة' : c.customer_type === 'retail' ? 'محل تجزئة' : 'فردي'}
                     </span>
                   </td>
                   <td className="px-6 py-6">
@@ -216,13 +222,14 @@ const CustomersList = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">رقم الهاتف</label>
-                  <input required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 h-14 font-bold text-left focus:border-emerald-600 outline-none transition-all" dir="ltr" type="tel" />
+                  <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 h-14 font-bold text-left focus:border-emerald-600 outline-none transition-all" dir="ltr" type="tel" placeholder="05xxxxxxxx" />
                 </div>
                 <div>
                   <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">التصنيف</label>
                   <select value={formData.customer_type} onChange={e => setFormData({...formData, customer_type: e.target.value})} className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 h-14 font-bold outline-none focus:border-emerald-600">
-                    <option value="trader">تاجر (جملة)</option>
-                    <option value="retail">تجزئة (محل)</option>
+                    <option value="trader">تاجر / جملة</option>
+                    <option value="retail">محل / تجزئة</option>
+                    <option value="individual">فردي</option>
                   </select>
                 </div>
               </form>

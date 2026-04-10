@@ -18,7 +18,8 @@ class DailyMovementService:
         if net_to_supplier > 0:
             LedgerEntry.objects.create(
                 tenant=tenant, account_type='supplier', account_id=supplier.id,
-                currency_code=movement.currency.code, entry_type='CR', amount=net_to_supplier,
+                currency_code=movement.currency.code, entry_type='CR', 
+                foreign_amount=net_to_supplier, base_amount=net_to_supplier, exchange_rate=1,
                 reference_type='market_tx', reference_id=movement.id,
                 description=f"مشتريات {movement.item_name} - حركة #{movement.daily_seq}"
             )
@@ -27,7 +28,8 @@ class DailyMovementService:
         if buyer and movement.sale_total > 0:
             LedgerEntry.objects.create(
                 tenant=tenant, account_type='customer', account_id=buyer.id,
-                currency_code=movement.currency.code, entry_type='DR', amount=movement.sale_total,
+                currency_code=movement.currency.code, entry_type='DR', 
+                foreign_amount=movement.sale_total, base_amount=movement.sale_total, exchange_rate=1,
                 reference_type='market_tx', reference_id=movement.id,
                 description=f"مبيعات {movement.item_name} - حركة #{movement.daily_seq}"
             )
@@ -36,12 +38,14 @@ class DailyMovementService:
         if movement.cash_received > 0 and buyer:
             CashTransaction.objects.create(
                 tenant=tenant, tx_type=CashTxType.IN, currency_code=movement.currency.code,
-                amount=movement.cash_received, reference_type='market_tx', reference_id=movement.id,
+                foreign_amount=movement.cash_received, base_amount=movement.cash_received, exchange_rate=1,
+                reference_type='market_tx', reference_id=movement.id,
                 description=f"قبض نقدي من {buyer.name} - سطر #{movement.daily_seq}"
             )
             LedgerEntry.objects.create(
                 tenant=tenant, account_type='customer', account_id=buyer.id,
-                currency_code=movement.currency.code, entry_type='CR', amount=movement.cash_received,
+                currency_code=movement.currency.code, entry_type='CR', 
+                foreign_amount=movement.cash_received, base_amount=movement.cash_received, exchange_rate=1,
                 reference_type='market_tx', reference_id=movement.id,
                 description=f"دفعة نقدية - سطر #{movement.daily_seq}"
             )
@@ -74,14 +78,15 @@ class DailyMovementService:
                 # Create CashTransaction for check
                 CashTransaction.objects.create(
                     tenant=tenant, tx_type=CashTxType.IN, currency_code=movement.currency.code,
-                    amount=chk_amount, is_check=True, check_ref=check_obj,
+                    foreign_amount=chk_amount, base_amount=chk_amount, exchange_rate=1, is_check=True, check_ref=check_obj,
                     reference_type='market_tx', reference_id=movement.id,
                     description=f"قبض شيك رقم {chk.get('check_number')} - سطر #{movement.daily_seq}"
                 )
                 # Credit the buyer ledger
                 LedgerEntry.objects.create(
                     tenant=tenant, account_type='customer', account_id=buyer.id,
-                    currency_code=movement.currency.code, entry_type='CR', amount=chk_amount,
+                    currency_code=movement.currency.code, entry_type='CR', 
+                    foreign_amount=chk_amount, base_amount=chk_amount, exchange_rate=1,
                     reference_type='market_tx', reference_id=movement.id,
                     description=f"تحصيل شيك رقم {chk.get('check_number')} - سطر #{movement.daily_seq}"
                 )
@@ -90,12 +95,14 @@ class DailyMovementService:
         if movement.expense_amount > 0:
             CashTransaction.objects.create(
                 tenant=tenant, tx_type=CashTxType.OUT, currency_code=movement.currency.code,
-                amount=movement.expense_amount, reference_type='market_tx', reference_id=movement.id,
+                foreign_amount=movement.expense_amount, base_amount=movement.expense_amount, exchange_rate=1, 
+                reference_type='market_tx', reference_id=movement.id,
                 description=f"دفع للمزارع {supplier.name} - سطر #{movement.daily_seq}"
             )
             LedgerEntry.objects.create(
                 tenant=tenant, account_type='supplier', account_id=supplier.id,
-                currency_code=movement.currency.code, entry_type='DR', amount=movement.expense_amount,
+                currency_code=movement.currency.code, entry_type='DR', 
+                foreign_amount=movement.expense_amount, base_amount=movement.expense_amount, exchange_rate=1,
                 reference_type='market_tx', reference_id=movement.id,
                 description=f"دفعة للمزارع - سطر #{movement.daily_seq}"
             )

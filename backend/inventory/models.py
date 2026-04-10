@@ -27,8 +27,11 @@ class Item(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="التصنيف")
     name = models.CharField(max_length=200, verbose_name="اسم الصنف")
     base_unit = models.CharField(max_length=10, choices=BaseUnit.choices, default=BaseUnit.KG, verbose_name="وحدة القياس")
-    waste_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, verbose_name="نسبة الهالك (%)")
-    box_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="ثمن الكرتون (افتراضي)")
+    waste_percentage = models.DecimalField(max_digits=5, decimal_places=3, default=0.00, verbose_name="نسبة الهالك (%)")
+    box_price = models.DecimalField(max_digits=10, decimal_places=3, default=0.00, verbose_name="ثمن الكرتون (افتراضي)")
+    tare_weight = models.DecimalField(max_digits=8, decimal_places=3, default=0.0, verbose_name="وزن الفارغ / التارة (كجم لكل وحدة)")
+    tare_unit = models.CharField(max_length=10, default='kg', verbose_name="وحدة التارة")
+    price_on = models.CharField(max_length=10, choices=[('gross', 'القائم (إجمالي)'), ('net', 'الصافي')], default='net', verbose_name="احتساب السعر على")
     is_active = models.BooleanField(default=True, verbose_name="نشط")
 
     class Meta:
@@ -48,8 +51,8 @@ class ItemUnit(models.Model):
     item              = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='units', verbose_name="الصنف")
     unit_name         = models.CharField(max_length=50, verbose_name="اسم الوحدة")
     conversion_factor = models.DecimalField(max_digits=10, decimal_places=4, default=1, verbose_name="معامل التحويل من الوحدة الأساسية")
-    buy_price         = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="سعر الشراء")
-    sell_price        = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="سعر البيع")
+    buy_price         = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="سعر الشراء")
+    sell_price        = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="سعر البيع")
     is_default        = models.BooleanField(default=False, verbose_name="وحدة افتراضية؟")
 
     class Meta:
@@ -101,12 +104,12 @@ class ShipmentItem(models.Model):
     unit = models.CharField(max_length=20, verbose_name="الوحدة")
     boxes_count = models.IntegerField(default=0, verbose_name="عدد الفوارغ (العبوات)")
     remaining_qty = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية المتبقية")
-    expected_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="السعر المتوقع")
+    expected_price = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="السعر المتوقع")
 
     # ── Module 2: Extra purchase costs (deducted from supplier net) ───────────
-    plastic_cost    = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="تكلفة البلاستيك")
-    labor_cost      = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="عتالة")
-    transport_cost  = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="تكلفة النقل")
+    plastic_cost    = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="تكلفة البلاستيك")
+    labor_cost      = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="عتالة")
+    transport_cost  = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="تكلفة النقل")
     driver_name     = models.CharField(max_length=150, blank=True, null=True, verbose_name="اسم السائق")
     cost_center     = models.CharField(max_length=100, blank=True, null=True, verbose_name="مركز التكلفة")
 

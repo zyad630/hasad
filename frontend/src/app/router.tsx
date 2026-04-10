@@ -15,11 +15,14 @@ import CustomersList from '../pages/suppliers/Customers';
 import CurrenciesPage from '../pages/settings/Currencies';
 import DailyMovements from '../pages/market/DailyMovements';
 import CustomerBalanceReport from '../pages/reports/CustomerBalanceReport';
+import UnifiedStatementReport from '../pages/reports/UnifiedStatementReport';
 import SupplierStatement from '../pages/suppliers/SupplierStatement';
 import ChecksPage from '../pages/finance/ChecksPage';
 import PayrollPage from '../pages/hr/Payroll';
 import OrdersList from '../pages/orders/OrdersList';
 import ReturnsList from '../pages/returns/ReturnsList';
+import AccountStatement from '../pages/finance/AccountStatement';
+import ChartOfAccounts from '../pages/finance/ChartOfAccounts';
 
 
 export const router = createBrowserRouter([
@@ -92,6 +95,10 @@ export const router = createBrowserRouter([
         element: <CustomerBalanceReport />,
       },
       {
+        path: 'reports/unified-statement',
+        element: <UnifiedStatementReport />,
+      },
+      {
         path: 'currencies',
         element: <CurrenciesPage />,
       },
@@ -106,6 +113,14 @@ export const router = createBrowserRouter([
       {
         path: 'returns',
         element: <ReturnsList />,
+      },
+      {
+        path: 'accounting/statement',
+        element: <AccountStatement />,
+      },
+      {
+        path: 'finance/chart-of-accounts',
+        element: <ChartOfAccounts />,
       },
       {
         path: 'super-admin',

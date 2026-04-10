@@ -71,8 +71,9 @@ const SuppliersList = () => {
       setIsModalOpen(false);
       setEditingId(null);
       setFormData({name: '', phone: '', deal_type: 'commission', commission_type: 'percent', commission_rate: 5});
-    } catch(err) {
-      showToast('خطأ في العملية', 'error');
+    } catch(err: any) {
+      const detail = err?.data ? JSON.stringify(err.data) : 'تحقق من البيانات';
+      showToast(`خطأ: ${detail}`, 'error');
     }
   };
 

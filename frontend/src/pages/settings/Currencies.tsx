@@ -24,10 +24,25 @@ const currencyApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Currencies'],
     }),
+    getExchangeRates: build.query({
+      query: () => 'exchange-rates/',
+      providesTags: ['ExchangeRates'],
+    }),
+    createExchangeRate: build.mutation({
+      query: (body) => ({
+        url: 'exchange-rates/',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['ExchangeRates'],
+    }),
   }),
 });
 
-export const { useGetCurrenciesQuery, useCreateCurrencyMutation, useDeleteCurrencyMutation } = currencyApi;
+export const { 
+  useGetCurrenciesQuery, useCreateCurrencyMutation, useDeleteCurrencyMutation,
+  useGetExchangeRatesQuery, useCreateExchangeRateMutation
+} = currencyApi;
 
 const CurrenciesPage = () => {
   const { showToast } = useToast();
@@ -36,14 +51,34 @@ const CurrenciesPage = () => {
   const [deleteCurrency] = useDeleteCurrencyMutation();
 
   const [formData, setFormData] = useState({ code: '', name: '', symbol: '' });
+  const [rateData, setRateData] = useState({ currency: '', rate: '', date: new Date().toISOString().split('T')[0] });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await createCurrency(formData).unwrap();
       setFormData({ code: '', name: '', symbol: '' });
+      showToast('تم تفعيل العملة بنجاح', 'success');
     } catch (err) {
       showToast('خطأ في إضافة العملة', 'error');
+    }
+  };
+
+  const { data: exchangeRates } = useGetExchangeRatesQuery({});
+  const [createExchangeRate] = useCreateExchangeRateMutation();
+
+  const handleRateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createExchangeRate({
+        currency: rateData.currency,
+        rate: parseFloat(rateData.rate),
+        date: rateData.date,
+      }).unwrap();
+      setRateData({ ...rateData, rate: '' });
+      showToast('تم حفظ التسعيرة اليومية بنجاح', 'success');
+    } catch (err) {
+      showToast('خطأ في الحفظ او يوجد تسعيرة تسبق هذا اليوم', 'error');
     }
   };
 
@@ -58,7 +93,7 @@ const CurrenciesPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* Add Currency Form */}
         <div className="bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-zinc-100 flex flex-col gap-6 h-fit md:sticky md:top-24">
           <h3 className="text-xl font-bold flex items-center gap-2 text-emerald-900 border-b pb-4 border-zinc-50">
@@ -143,6 +178,68 @@ const CurrenciesPage = () => {
                 <p>لا توجد عملات إضافية مفعلة حالياً.</p>
               </div>
             )}
+          </div>
+          
+          {/* Exchange Rates section */}
+          <div className="mt-12 bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
+             <h3 className="text-xl font-bold mb-6 text-indigo-900 border-b pb-4">إدارة أسعار الصرف</h3>
+             
+             <form onSubmit={handleRateSubmit} className="flex flex-col md:flex-row gap-4 items-end bg-indigo-50/50 p-4 rounded-2xl mb-8 border border-indigo-100">
+                <div className="flex-1 w-full">
+                  <label className="block text-xs font-bold text-indigo-900/60 mb-2">العملة</label>
+                  <select 
+                    required 
+                    value={rateData.currency}
+                    onChange={e => setRateData({...rateData, currency: e.target.value})}
+                    className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3 h-[54px] font-bold text-indigo-900">
+                     <option value="">اختر..</option>
+                     {currencies?.map((c:any) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 w-full">
+                  <label className="block text-xs font-bold text-indigo-900/60 mb-2">السعر مقابل العملة الأساسية</label>
+                  <input 
+                    required type="number" step="0.000001"
+                    value={rateData.rate}
+                    onChange={e => setRateData({...rateData, rate: e.target.value})}
+                    className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3 h-[54px] font-bold text-indigo-900" placeholder="مثلا: 3.52" />
+                </div>
+                <div className="flex-1 w-full">
+                  <label className="block text-xs font-bold text-indigo-900/60 mb-2">التاريخ</label>
+                  <input 
+                    required type="date"
+                    value={rateData.date}
+                    onChange={e => setRateData({...rateData, date: e.target.value})}
+                    className="w-full bg-white border border-indigo-200 rounded-xl px-4 py-3 h-[54px] font-bold text-indigo-900" />
+                </div>
+                <button className="bg-indigo-600 text-white px-8 h-[54px] rounded-xl font-black w-full md:w-auto hover:bg-indigo-700 transition">
+                  حفظ السعر
+                </button>
+             </form>
+
+             <table className="w-full text-right text-sm">
+                <thead className="text-xs text-zinc-400 border-b border-zinc-100 font-bold uppercase tracking-wide">
+                   <tr>
+                     <th className="py-3 px-4">التاريخ</th>
+                     <th className="py-3 px-4">العملة</th>
+                     <th className="py-3 px-4">سعر الصرف الداخلي (Base = 1)</th>
+                   </tr>
+                </thead>
+                <tbody>
+                   {(exchangeRates || []).map((rate: any) => (
+                     <tr key={rate.id} className="border-b border-zinc-50 hover:bg-zinc-50">
+                        <td className="py-4 px-4 font-bold text-zinc-600">{rate.date}</td>
+                        <td className="py-4 px-4 font-black text-indigo-900">{rate.currency_code}</td>
+                        <td className="py-4 px-4 font-bold text-emerald-600">{rate.rate}</td>
+                     </tr>
+                   ))}
+                   {exchangeRates?.length === 0 && (
+                     <tr>
+                        <td colSpan={3} className="py-8 text-center text-zinc-400 text-xs">لا يوجد أسعار مسجلة بعد</td>
+                     </tr>
+                   )}
+                </tbody>
+             </table>
           </div>
         </div>
       </div>

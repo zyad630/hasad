@@ -20,7 +20,7 @@ class Employee(models.Model):
     national_id            = models.CharField(max_length=50, blank=True, null=True, verbose_name="رقم الهوية")
     phone                  = models.CharField(max_length=20, blank=True, null=True, verbose_name="رقم الهاتف")
     job_title              = models.CharField(max_length=100, blank=True, null=True, verbose_name="المسمى الوظيفي")
-    basic_salary           = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="الراتب الأساسي")
+    basic_salary           = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="الراتب الأساسي")
     working_days_per_month = models.IntegerField(default=26, verbose_name="أيام العمل الشهرية")
     hire_date              = models.DateField(verbose_name="تاريخ التعيين")
     status                 = models.CharField(
@@ -73,10 +73,10 @@ class PayrollLine(models.Model):
     payroll_run   = models.ForeignKey(PayrollRun, on_delete=models.CASCADE, related_name='lines')
     employee      = models.ForeignKey(Employee, on_delete=models.PROTECT, verbose_name="الموظف")
     days_worked   = models.IntegerField(verbose_name="أيام العمل الفعلية")
-    basic_salary  = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="الراتب الأساسي")
-    deductions    = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="الاستقطاعات")
-    bonuses       = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="المكافآت")
-    net_salary    = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="صافي الراتب")
+    basic_salary  = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="الراتب الأساسي")
+    deductions    = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="الاستقطاعات")
+    bonuses       = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="المكافآت")
+    net_salary    = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="صافي الراتب")
     ledger_posted = models.BooleanField(default=False, verbose_name="تم الترحيل؟")
 
     class Meta:

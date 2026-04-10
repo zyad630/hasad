@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { Providers } from './app/providers';
 import App from './App';
 import './index.css';
+import { initGlobalKeyboardNavigation } from './utils/keyboard';
+
+initGlobalKeyboardNavigation();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

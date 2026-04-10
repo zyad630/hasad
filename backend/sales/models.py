@@ -19,8 +19,9 @@ class Sale(models.Model):
     sale_date    = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ البيع")
     payment_type = models.CharField(max_length=10, choices=PaymentType.choices, default=PaymentType.CASH, verbose_name="طريقة الدفع")
     currency_code = models.CharField(max_length=10, default='ILS', verbose_name="العملة")
-    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name="إجمالي الفاتورة")
-
+    exchange_rate  = models.DecimalField(max_digits=18, decimal_places=6, default=1, verbose_name="سعر الصرف")
+    foreign_amount = models.DecimalField(max_digits=18, decimal_places=3, default=0, verbose_name="إجمالي الفاتورة (أجنبي)")
+    base_amount    = models.DecimalField(max_digits=18, decimal_places=3, default=0, verbose_name="إجمالي الفاتورة (أساسي)")
     # H-01: Cancellation — immutable record, never hard-delete
     is_cancelled  = models.BooleanField(default=False, db_index=True, verbose_name="ملغاة؟")
     cancelled_at  = models.DateTimeField(null=True, blank=True, verbose_name="تاريخ الإلغاء")
@@ -53,8 +54,12 @@ class SaleItem(models.Model):
     sale           = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='items', verbose_name="الفاتورة")
     shipment_item  = models.ForeignKey(ShipmentItem, on_delete=models.PROTECT, verbose_name="بند الإرسالية")
     quantity       = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية المباعة")
-    unit_price     = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="سعر الوحدة")
-    subtotal       = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="الإجمالي الفرعي")
+    unit_price     = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="سعر الوحدة")
+    subtotal       = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الإجمالي الفرعي")
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="نسبة العمولة (%)")
+    discount       = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="خصم الصنف")
+    gross_weight   = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="الوزن القائم")
+    net_weight     = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="الوزن الصافي")
     containers_out = models.IntegerField(default=0, verbose_name="الفوارغ الصادرة")
 
     class Meta:
@@ -130,8 +135,8 @@ class SalesOrderItem(models.Model):
     item       = models.ForeignKey('inventory.Item', on_delete=models.PROTECT, verbose_name="الصنف")
     unit_name  = models.CharField(max_length=50, default='kg', verbose_name="الوحدة")
     quantity   = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية")
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="السعر")
-    subtotal   = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="الإجمالي الفرعي")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="السعر")
+    subtotal   = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الإجمالي الفرعي")
 
     class Meta:
         verbose_name = 'بند طلب بيع'
@@ -167,8 +172,8 @@ class PurchaseOrderItem(models.Model):
     item       = models.ForeignKey('inventory.Item', on_delete=models.PROTECT, verbose_name="الصنف")
     unit_name  = models.CharField(max_length=50, default='kg', verbose_name="الوحدة")
     quantity   = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية")
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="السعر")
-    subtotal   = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="الإجمالي الفرعي")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="السعر")
+    subtotal   = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الإجمالي الفرعي")
 
     class Meta:
         verbose_name = 'بند أمر شراء'
@@ -193,7 +198,7 @@ class SaleReturn(models.Model):
     return_date   = models.DateTimeField(auto_now_add=True)
     reason        = models.CharField(max_length=20, choices=ReturnReason.choices, default=ReturnReason.OTHER, verbose_name="سبب الإرجاع")
     notes         = models.TextField(blank=True, null=True)
-    return_amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="قيمة المرتجع")
+    return_amount = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="قيمة المرتجع")
     created_by    = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="بواسطة")
 
     def delete(self, *args, **kwargs):
@@ -212,8 +217,8 @@ class SaleReturnItem(models.Model):
     sale_return   = models.ForeignKey(SaleReturn, on_delete=models.CASCADE, related_name='items')
     shipment_item = models.ForeignKey('inventory.ShipmentItem', on_delete=models.PROTECT, verbose_name="بند الإرسالية")
     quantity      = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية المرتجعة")
-    unit_price    = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="السعر")
-    subtotal      = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="الإجمالي")
+    unit_price    = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="السعر")
+    subtotal      = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الإجمالي")
 
     class Meta:
         verbose_name = 'بند مرتجع مبيعات'
@@ -228,7 +233,7 @@ class PurchaseReturn(models.Model):
     return_date       = models.DateTimeField(auto_now_add=True)
     reason            = models.CharField(max_length=20, choices=ReturnReason.choices, default=ReturnReason.OTHER, verbose_name="سبب الإرجاع")
     notes             = models.TextField(blank=True, null=True)
-    return_amount     = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="قيمة المرتجع")
+    return_amount     = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="قيمة المرتجع")
     created_by        = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="بواسطة")
 
     def delete(self, *args, **kwargs):
@@ -247,8 +252,8 @@ class PurchaseReturnItem(models.Model):
     purchase_return = models.ForeignKey(PurchaseReturn, on_delete=models.CASCADE, related_name='items')
     shipment_item   = models.ForeignKey('inventory.ShipmentItem', on_delete=models.PROTECT, verbose_name="بند الإرسالية")
     quantity        = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية المرتجعة")
-    unit_price      = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="السعر")
-    subtotal        = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="الإجمالي")
+    unit_price      = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="السعر")
+    subtotal        = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الإجمالي")
 
     class Meta:
         verbose_name = 'بند مرتجع مشتريات'

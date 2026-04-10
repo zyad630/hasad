@@ -67,8 +67,8 @@ class Command(BaseCommand):
                     )
 
             # Check 2: Tenant CashBalance expected (we just calculate net IN-OUT)
-            sum_cash_in = CashTransaction.objects.filter(tenant=tenant, tx_type='in').aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
-            sum_cash_out = CashTransaction.objects.filter(tenant=tenant, tx_type='out').aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+            sum_cash_in = CashTransaction.objects.filter(tenant=tenant, tx_type='in').aggregate(t=Sum('base_amount'))['t'] or Decimal('0.000')
+            sum_cash_out = CashTransaction.objects.filter(tenant=tenant, tx_type='out').aggregate(t=Sum('base_amount'))['t'] or Decimal('0.000')
             tenant_actual_balance = Decimal(str(sum_cash_in)) - Decimal(str(sum_cash_out))
 
             self.stdout.write(f"  [Info] Tenant Cash Flow: IN {sum_cash_in} | OUT {sum_cash_out} | NET {tenant_actual_balance}")
@@ -79,7 +79,7 @@ class Command(BaseCommand):
                 total_records_checked += 1
                 
                 sum_settle_net = Settlement.objects.filter(supplier=supp).aggregate(t=Sum('net_supplier'))['t'] or Decimal('0.00')
-                sum_payments = CashTransaction.objects.filter(tenant=tenant, reference_type='supplier_payment', reference_id=supp.id).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+                sum_payments = CashTransaction.objects.filter(tenant=tenant, reference_type='supplier_payment', reference_id=supp.id).aggregate(t=Sum('base_amount'))['t'] or Decimal('0.000')
                 
                 # Assume standard deal: balance = owed to supplier = settlements - payments
                 expected_balance = Decimal(str(sum_settle_net)) - Decimal(str(sum_payments))
@@ -96,8 +96,8 @@ class Command(BaseCommand):
             for cust in customers:
                 total_records_checked += 1
                 
-                sum_credit_sales = Sale.objects.filter(customer=cust, payment_type='credit').aggregate(t=Sum('total_amount'))['t'] or Decimal('0.00')
-                sum_collections = CashTransaction.objects.filter(tenant=tenant, reference_type='customer_payment', reference_id=cust.id).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+                sum_credit_sales = Sale.objects.filter(customer=cust, payment_type='credit').aggregate(t=Sum('base_amount'))['t'] or Decimal('0.000')
+                sum_collections = CashTransaction.objects.filter(tenant=tenant, reference_type='customer_payment', reference_id=cust.id).aggregate(t=Sum('base_amount'))['t'] or Decimal('0.000')
                 
                 expected_credit = Decimal(str(sum_credit_sales)) - Decimal(str(sum_collections))
                 actual_credit = Decimal(str(cust.credit_balance))

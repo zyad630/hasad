@@ -30,7 +30,11 @@ class ItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Item
-        fields = ['id', 'category', 'name', 'base_unit', 'waste_percentage', 'is_active', 'conversions']
+        fields = [
+            'id', 'category', 'name', 'base_unit',
+            'waste_percentage', 'is_active', 'conversions',
+            'tare_weight', 'tare_unit', 'price_on',
+        ]
         read_only_fields = ['id']
 
 class CategorySerializer(serializers.ModelSerializer):

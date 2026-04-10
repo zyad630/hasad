@@ -11,7 +11,7 @@ class CommissionType(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, verbose_name="اسم العمولة")
     calc_type = models.CharField(max_length=20, choices=[('percent', 'نسبة مئوية (%)'), ('fixed', 'مبلغ ثابت (ج)')], default='percent', verbose_name="نوع الحساب")
-    default_rate = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, verbose_name="نسبة/قيمة العمولة")
+    default_rate = models.DecimalField(max_digits=8, decimal_places=3, default=0.00, verbose_name="نسبة/قيمة العمولة")
 
     class Meta:
         verbose_name = 'نوع العمولة'
@@ -30,7 +30,7 @@ class Supplier(models.Model):
     # Updated: Link Supplier to CommissionType via ForeignKey
     commission_type = models.ForeignKey(CommissionType, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="نوع العمولة المرتبط")
     
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="رصيد الحساب")
+    balance = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="رصيد الحساب")
     whatsapp_number = models.CharField(max_length=20, null=True, blank=True, verbose_name="رقم واتساب")
     is_active = models.BooleanField(default=True, verbose_name="نشط")
     notes     = models.TextField(blank=True, null=True, verbose_name="ملاحظات")
@@ -53,8 +53,8 @@ class Customer(models.Model):
     name = models.CharField(max_length=200, verbose_name="اسم الزبون / تاجر")
     phone = models.CharField(max_length=20, null=True, blank=True, verbose_name="رقم الهاتف")
     customer_type = models.CharField(max_length=20, choices=CustomerType.choices, default=CustomerType.TRADER, verbose_name="تصنيف الزبون")
-    credit_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="رصيد المديونية")
-    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="حد الائتمان")
+    credit_balance = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="رصيد المديونية")
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="حد الائتمان")
     is_active = models.BooleanField(default=True, verbose_name="نشط")
     notes     = models.TextField(blank=True, null=True, verbose_name="ملاحظات")
 

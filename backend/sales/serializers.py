@@ -9,7 +9,10 @@ class SaleItemSerializer(serializers.ModelSerializer):
     item_name = serializers.CharField(source='shipment_item.item.name', read_only=True)
     class Meta:
         model = SaleItem
-        fields = ['id', 'shipment_item', 'item_name', 'quantity', 'unit_price', 'subtotal', 'containers_out']
+        fields = [
+            'id', 'shipment_item', 'item_name', 'quantity', 'unit_price', 'subtotal', 
+            'containers_out', 'commission_rate', 'discount', 'gross_weight', 'net_weight'
+        ]
         read_only_fields = ['id', 'subtotal']
 
 class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
@@ -18,8 +21,12 @@ class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
 
     class Meta:
         model = Sale
-        fields = ['id', 'customer', 'customer_name', 'sale_date', 'payment_type', 'currency_code', 'currency_symbol', 'currency_name', 'total_amount', 'items']
-        read_only_fields = ['id', 'sale_date', 'total_amount']
+        fields = [
+            'id', 'customer', 'customer_name', 'sale_date', 'payment_type', 
+            'currency_code', 'exchange_rate', 'currency_symbol', 'currency_name',
+            'foreign_amount', 'base_amount', 'items'
+        ]
+        read_only_fields = ['id', 'sale_date', 'foreign_amount', 'base_amount']
 
     def validate(self, data):
         for item_data in data.get('items', []):
@@ -42,7 +49,10 @@ class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
             user=user,
             customer=validated_data.get('customer'),
             payment_type=validated_data.get('payment_type', 'cash'),
-            items_data=items_data
+            currency_code=validated_data.get('currency_code', 'ILS'),
+            exchange_rate=validated_data.get('exchange_rate', 1),
+            items_data=items_data,
+            discount=validated_data.get('discount', 0)
         )
 
 class ContainerTransactionSerializer(serializers.ModelSerializer):

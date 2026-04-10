@@ -1,178 +1,194 @@
+/**
+ * Dashboard — Real-time daily stats (Request 7)
+ * Shows: مبيعات اليوم, ذمم العملاء, إرساليات مفتوحة, مستحقات الموردين
+ * Quick report buttons and last 5 transactions
+ */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/baseApi';
 import { VegetableLoader } from '../components/ui/VegetableLoader';
-import { useGetShipmentsQuery } from './shipments/Shipments';
 
 const reportsApi = api.injectEndpoints({
   endpoints: (build) => ({
     getDashboard: build.query({
       query: () => 'reports/dashboard/',
-      providesTags: ['Sales', 'Shipments'] as any,
-    }),
-    getAgingReport: build.query({
-      query: () => 'reports/aging/',
+      // Re-fetches whenever any of these tags are invalidated (sale, cash, market movement...)
+      providesTags: ['Sales', 'Shipments', 'Cash', 'Movements', 'Settlements', 'Customers', 'Suppliers'] as any,
     }),
   }),
 });
 
-export const { useGetDashboardQuery, useGetAgingReportQuery } = reportsApi;
+export const { useGetDashboardQuery } = reportsApi;
+
+// Number card component
+function KpiCard({ label, value, sub, color, icon, onClick }: any) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: 'white', borderRadius: '20px', padding: '20px',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+        border: `2px solid ${color}20`,
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'transform 0.15s, box-shadow 0.15s',
+        display: 'flex', flexDirection: 'column', gap: '10px',
+      }}
+      onMouseOver={e => { if (onClick) { (e.currentTarget as any).style.transform = 'translateY(-3px)'; (e.currentTarget as any).style.boxShadow = `0 8px 24px ${color}25`; } }}
+      onMouseOut={e => { (e.currentTarget as any).style.transform = ''; (e.currentTarget as any).style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'; }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>
+          {icon}
+        </div>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#9ca3af', background: '#f9fafb', padding: '3px 8px', borderRadius: '6px' }}>اليوم</span>
+      </div>
+      <div>
+        <div style={{ fontSize: '26px', fontWeight: 900, color: color, fontFamily: 'monospace', lineHeight: 1.1 }}>
+          {value}
+        </div>
+        <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', marginTop: '4px' }}>{label}</div>
+        {sub && <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>{sub}</div>}
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
-  const { data: dashboard, isLoading: dashLoading, refetch: dashRefetch } = useGetDashboardQuery({});
-  const { data: agingData, isLoading: agingLoading, refetch: agingRefetch } = useGetAgingReportQuery({});
-  const { data: shipmentsData, isLoading: shipLoading, refetch: shipRefetch } = useGetShipmentsQuery({});
+  const { data: dashboard, isLoading, refetch } = useGetDashboardQuery({});
   const navigate = useNavigate();
 
-  if (dashLoading || agingLoading || shipLoading) return <VegetableLoader text="جاري التحميل..." size="lg" fullScreen={false} />;
+  if (isLoading) return <VegetableLoader text="جاري تحميل اللوحة..." size="lg" fullScreen={false} />;
 
-  const shipments = shipmentsData?.results || (Array.isArray(shipmentsData) ? shipmentsData : []);
-  const recentShipments = shipments.slice(0, 5);
-
-  const handleRefresh = () => {
-    dashRefetch();
-    agingRefetch();
-    shipRefetch();
-  };
+  const d = dashboard || {};
+  const fmt = (n: number) => n?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00';
 
   return (
-    <div>
-      {/* ── Page Title ── */}
+    <div style={{ direction: 'rtl' }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="page-title">
         <div className="title-text">
-          <h2>لوحة التحكم</h2>
-          <p>متابعة المبيعات، المشتريات، والسيولة النقدية في الوقت الفعلي.</p>
+          <h2>لوحة التحكم اليومية</h2>
+          <p>البيانات الحية لهذا اليوم — {d.today_date || new Date().toLocaleDateString('ar-EG')}</p>
         </div>
-        <div className="title-actions">
-          <button className="btn btn-ghost" title="تحديث البيانات" onClick={handleRefresh}>
+        <div className="title-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost" title="تحديث" onClick={() => refetch()}>
             <i className="fa-solid fa-arrows-rotate"></i>
           </button>
-          <button className="btn btn-outline-primary" onClick={() => navigate('/reports')}>
-            <i className="fa-solid fa-chart-line"></i> تقرير الأداء
+          <button className="btn btn-outline-primary" onClick={() => navigate('/accounting/statement')}>
+            <i className="fa-solid fa-file-lines"></i> كشف حساب
           </button>
           <button className="btn btn-primary" onClick={() => navigate('/pos')}>
-            <i className="fa-solid fa-plus"></i> حركة جديدة
+            <i className="fa-solid fa-plus"></i> فاتورة جديدة
           </button>
         </div>
       </div>
 
-      {/* ── Stats Grid ── */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon green"><i className="fa-solid fa-hand-holding-dollar"></i></div>
-          <div className="stat-info">
-            <h4>مبيعات اليوم</h4>
-            <span className="stat-value">{Number(dashboard?.total_sales_today || 0).toLocaleString()} <small>₪</small></span>
-            <div className="stat-sub">{dashboard?.sales_count_today || 0} عملية</div>
+      {/* ── KPI Cards ──────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <KpiCard
+          label="مبيعات اليوم"
+          value={fmt(d.sales_today)}
+          sub={`${d.sales_today_count || 0} فاتورة`}
+          color="#059669" icon="📈"
+          onClick={() => navigate('/reports')}
+        />
+        <KpiCard
+          label="إرساليات مفتوحة"
+          value={d.open_shipments || 0}
+          sub={`${d.today_shipments || 0} واردة اليوم`}
+          color="#0284c7" icon="📦"
+          onClick={() => navigate('/shipments')}
+        />
+        <KpiCard
+          label="ذمم العملاء"
+          value={fmt(d.total_receivables)}
+          sub="إجمالي الذمم الدائنة"
+          color="#f59e0b" icon="👥"
+          onClick={() => navigate('/accounting/statement')}
+        />
+        <KpiCard
+          label="مستحقات الموردين"
+          value={fmt(d.total_payables)}
+          sub={`${d.active_suppliers || 0} مورد نشط`}
+          color="#dc2626" icon="🌾"
+          onClick={() => navigate('/suppliers')}
+        />
+      </div>
+
+      {/* ── Quick Report Buttons ────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        {[
+          { label: 'كشف حساب', icon: '📋', path: '/accounting/statement' },
+          { label: 'ذمم العملاء', icon: '💰', path: '/suppliers?tab=customers' },
+          { label: 'ذمم المزارعين', icon: '🌿', path: '/suppliers?tab=suppliers' },
+          { label: 'أرصدة المخزون', icon: '📊', path: '/inventory' },
+          { label: 'التقارير', icon: '📈', path: '/reports' },
+        ].map(b => (
+          <button key={b.path} onClick={() => navigate(b.path)} style={{
+            padding: '10px 18px', borderRadius: '12px', border: '2px solid #e5e7eb',
+            background: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+            fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px',
+            transition: 'all 0.15s',
+          }}
+            onMouseOver={e => { (e.currentTarget as any).style.borderColor = '#059669'; (e.currentTarget as any).style.color = '#059669'; }}
+            onMouseOut={e => { (e.currentTarget as any).style.borderColor = '#e5e7eb'; (e.currentTarget as any).style.color = '#1f2937'; }}
+          >
+            <span>{b.icon}</span> {b.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Recent Transactions ─────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+
+        {/* Recent Sales */}
+        <div style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ padding: '16px 20px', background: '#f0fdf4', borderBottom: '1px solid #d1fae5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontWeight: 800, fontSize: '14px', color: '#065f46' }}>📋 آخر فواتير المبيعات</h3>
+            <button onClick={() => navigate('/reports/unified-statement')} style={{ fontSize: '12px', color: '#059669', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>عرض الكل ←</button>
           </div>
+          {(!d.recent_sales || d.recent_sales.length === 0) ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: '#d1d5db', fontWeight: 600, fontSize: '13px' }}>لا توجد مبيعات اليوم</div>
+          ) : (d.recent_sales || []).map((s: any, i: number) => (
+            <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid #f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '13px' }}>فاتورة #{typeof s.id === 'string' ? s.id.slice(-6) : s.id}</div>
+                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                  {s.payment_type === 'cash' ? '💵 كاش' : '📋 ذمة'} · {new Date(s.sale_date || Date.now()).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+              <span style={{ fontWeight: 900, fontSize: '15px', color: '#059669', fontFamily: 'monospace' }}>
+                {fmt(s.foreign_amount)} {s.currency_code}
+              </span>
+            </div>
+          ))}
         </div>
-        <div className="stat-card">
-          <div className="stat-icon yellow"><i className="fa-solid fa-percent"></i></div>
-          <div className="stat-info">
-            <h4>إجمالي الكمسيون</h4>
-            <span className="stat-value">{Number(dashboard?.total_commission_today || 0).toLocaleString()} <small>₪</small></span>
-            <div className="stat-sub">العمولة المستقطعة</div>
+
+        {/* Recent Purchases/Shipments */}
+        <div style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+          <div style={{ padding: '16px 20px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontWeight: 800, fontSize: '14px', color: '#1d4ed8' }}>📦 آخر الإرساليات</h3>
+            <button onClick={() => navigate('/shipments')} style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>عرض الكل ←</button>
           </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon blue"><i className="fa-solid fa-truck"></i></div>
-          <div className="stat-info">
-            <h4>مشتريات اليوم</h4>
-            <span className="stat-value">{Number(dashboard?.total_purchases_today || 0).toLocaleString()} <small>₪</small></span>
-            <div className="stat-sub">فواتير المزارعين</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon purple"><i className="fa-solid fa-wallet"></i></div>
-          <div className="stat-info">
-            <h4>رصيد الصندوق</h4>
-            <span className="stat-value">{Number(dashboard?.cash_balance || 0).toLocaleString()} <small>₪</small></span>
-            <div className="stat-sub">السيولة المتاحة</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon cyan"><i className="fa-solid fa-money-check"></i></div>
-          <div className="stat-info">
-            <h4>صندوق الشيكات</h4>
-            <span className="stat-value">{Number(dashboard?.check_balance || 0).toLocaleString()} <small>₪</small></span>
-            <div className="stat-sub">آجل التحصيل</div>
-          </div>
+          {(!d.recent_purchases || d.recent_purchases.length === 0) ? (
+            <div style={{ padding: '30px', textAlign: 'center', color: '#d1d5db', fontWeight: 600, fontSize: '13px' }}>لا توجد إرساليات</div>
+          ) : (d.recent_purchases || []).map((p: any, i: number) => (
+            <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid #f9fafb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '13px' }}>{p.supplier__name}</div>
+                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                  {p.shipment_date} · {p.status === 'open' ? <span style={{ color: '#059669' }}>مفتوحة</span> : <span style={{ color: '#9ca3af' }}>تمت التصفية</span>}
+                </div>
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: p.status === 'open' ? '#0284c7' : '#9ca3af', background: p.status === 'open' ? '#eff6ff' : '#f9fafb', padding: '3px 8px', borderRadius: '6px' }}>
+                {p.deal_type === 'commission' ? 'كمسيون' : 'شراء مباشر'}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── Content Grid ── */}
-      <div className="content-grid">
-        
-        {/* Recent Transactions Table */}
-        <div className="card">
-          <div className="card-header">
-            <h3><i className="fa-solid fa-clock-rotate-left" style={{color:'var(--primary)', marginLeft:'6px'}}></i> آخر الحركات النشطة</h3>
-            <button className="btn btn-ghost btn-sm">عرض الكل</button>
-          </div>
-          <div className="card-body" style={{padding:0}}>
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>المسلسل</th>
-                    <th>المورد</th>
-                    <th>النوع</th>
-                    <th>الحالة</th>
-                    <th>المبلغ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentShipments.map((s: any) => (
-                    <tr key={s.id}>
-                      <td style={{fontWeight:800, color:'var(--text-muted)'}}>#{s.id.toString().substring(0,6)}</td>
-                      <td style={{fontWeight:700}}>{s.supplier_name}</td>
-                      <td><span className="badge badge-info"><i className="fa-solid fa-truck-ramp-box" style={{marginLeft:'4px'}}></i> إرسالية</span></td>
-                      <td>
-                        {s.status === 'open' 
-                          ? <span className="badge badge-warning">مفتوحة</span>
-                          : <span className="badge badge-success">مغلقة</span>}
-                      </td>
-                      <td style={{fontWeight:800, color:'var(--primary)'}}>{s.total_commission} <small>₪</small></td>
-                    </tr>
-                  ))}
-                  {recentShipments.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-8 text-slate-400">لا توجد حركات مسجلة حالياً</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* Side Column Data */}
-        <div className="side-col">
-          <div className="card" style={{borderRight: '4px solid var(--danger)'}}>
-            <div className="card-header">
-              <h3><i className="fa-solid fa-circle-exclamation" style={{color:'var(--danger)', marginLeft:'6px'}}></i> أعلى الذمم</h3>
-            </div>
-            <div className="card-body">
-               <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                 {agingData?.top_debtors?.slice(0, 4).map((d: any, idx: number) => (
-                   <div key={idx} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0', borderBottom:'1px solid var(--border)'}}>
-                      <div>
-                         <div style={{fontWeight:700, fontSize:'14px'}}>{d.customer_name}</div>
-                         <div style={{fontSize:'12px', color:'var(--text-muted)'}}>زبون</div>
-                      </div>
-                      <div style={{fontWeight:900, fontSize:'16px', color:'var(--danger)'}}>{Math.abs(d.balance).toLocaleString()} <small>₪</small></div>
-                   </div>
-                 ))}
-                 {(!agingData?.top_debtors || agingData.top_debtors.length === 0) && (
-                   <div className="empty-state" style={{padding:'20px'}}>
-                      <i className="fa-solid fa-check-circle" style={{color:'var(--primary)', marginBottom:'10px', fontSize:'32px'}}></i>
-                      <p>لا توجد ديون مستحقة</p>
-                   </div>
-                 )}
-               </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
     </div>
   );
 }

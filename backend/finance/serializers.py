@@ -11,16 +11,40 @@ class FinanceBaseSerializer(CurrencySerializerMixin, serializers.ModelSerializer
     # The fields are inherited from CurrencySerializerMixin
     pass
 
+from .models import AccountGroup, Account
+
+class AccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Account
+        fields = ['id', 'group', 'name', 'code', 'is_active']
+        read_only_fields = ['id']
+
+class AccountGroupSerializer(serializers.ModelSerializer):
+    accounts = AccountSerializer(many=True, read_only=True)
+    subgroups = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AccountGroup
+        fields = ['id', 'name', 'code', 'parent', 'account_type', 'accounts', 'subgroups']
+        read_only_fields = ['id']
+
+    def get_subgroups(self, obj):
+        # Recursively serialize subgroups
+        return AccountGroupSerializer(obj.subgroups.all(), many=True).data
+
 class ExpenseSerializer(FinanceBaseSerializer):
     class Meta:
         model = Expense
-        fields = ['id', 'shipment', 'expense_type', 'amount', 'currency_code', 'currency_symbol', 'currency_name', 'description', 'expense_date']
+        fields = ['id', 'shipment', 'category', 'currency_code', 'currency_symbol', 'currency_name',
+                  'foreign_amount', 'exchange_rate', 'base_amount', 'description', 'expense_date']
         read_only_fields = ['id']
 
 class CashTransactionSerializer(FinanceBaseSerializer):
     class Meta:
         model = CashTransaction
-        fields = ['id', 'tx_type', 'amount', 'currency_code', 'currency_symbol', 'currency_name', 'is_check', 'reference_type', 'reference_id', 'description', 'tx_date']
+        fields = ['id', 'tx_type', 'currency_code', 'exchange_rate', 'foreign_amount', 'base_amount',
+                  'currency_symbol', 'currency_name', 'is_check', 'reference_type', 'reference_id',
+                  'description', 'tx_date']
         read_only_fields = ['id', 'tx_date']
 
 class SettlementSerializer(FinanceBaseSerializer):

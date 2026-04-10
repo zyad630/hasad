@@ -25,6 +25,23 @@ class Currency(models.Model):
     def __str__(self):
         return f"{self.name} ({self.code})"
 
+class CurrencyExchangeRate(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey('Tenant', on_delete=models.CASCADE, related_name='exchange_rates')
+    currency = models.ForeignKey(Currency, on_delete=models.CASCADE, related_name='rates')
+    rate = models.DecimalField(max_digits=18, decimal_places=6, verbose_name="سعر الصرف")
+    date = models.DateField(verbose_name="تاريخ التسعيرة")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey('CustomUser', on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'سعر صرف'
+        verbose_name_plural = 'أسعار الصرف'
+        unique_together = ('tenant', 'currency', 'date')
+
+    def __str__(self):
+        return f"{self.currency.code} = {self.rate} on {self.date}"
+
 class Tenant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=150, verbose_name="اسم المحل / الوكالة")
@@ -120,12 +137,12 @@ class TenantDailySnapshot(models.Model):
     date = models.DateField(auto_now_add=True, verbose_name="التاريخ")
     
     sales_count = models.IntegerField(default=0, verbose_name="عدد المبيعات")
-    sales_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="إجمالي المبيعات")
-    cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="المبيعات النقدية")
-    credit_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="المبيعات الآجلة")
+    sales_total = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="إجمالي المبيعات")
+    cash_sales = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="المبيعات النقدية")
+    credit_sales = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="المبيعات الآجلة")
     
     settlements_count = models.IntegerField(default=0, verbose_name="عدد التصفيات")
-    commissions_earned = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, verbose_name="إجمالي العمولات")
+    commissions_earned = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="إجمالي العمولات")
     
     active_users = models.IntegerField(default=0, verbose_name="المستخدمين النشطين")
     login_count = models.IntegerField(default=0, verbose_name="عدد مرات الدخول")

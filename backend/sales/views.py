@@ -15,7 +15,7 @@ class SaleViewSet(viewsets.ModelViewSet):
     serializer_class    = SaleSerializer
     filter_backends     = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields    = ['customer', 'payment_type', 'is_cancelled']
-    ordering_fields     = ['sale_date', 'total_amount']
+    ordering_fields     = ['sale_date', 'foreign_amount']
     http_method_names   = ['get', 'post', 'head', 'options']   # H-01: No DELETE or PUT
 
     def get_queryset(self):
@@ -90,7 +90,7 @@ class SaleViewSet(viewsets.ModelViewSet):
                 action='sale_cancelled',
                 entity_type='Sale',
                 entity_id=sale.id,
-                before={'is_cancelled': False, 'total': str(sale.total_amount)},
+                before={'is_cancelled': False, 'total': str(sale.foreign_amount)},
                 after={'is_cancelled': True, 'reason': reason},
                 request=request,
             )

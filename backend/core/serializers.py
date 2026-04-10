@@ -6,6 +6,16 @@ class CurrencySerializer(serializers.ModelSerializer):
         model = Currency
         fields = ['id', 'code', 'name', 'symbol', 'is_base']
 
+from .models import CurrencyExchangeRate
+
+class CurrencyExchangeRateSerializer(serializers.ModelSerializer):
+    currency_code = serializers.CharField(source='currency.code', read_only=True)
+    currency_name = serializers.CharField(source='currency.name', read_only=True)
+    
+    class Meta:
+        model = CurrencyExchangeRate
+        fields = ['id', 'currency', 'currency_code', 'currency_name', 'rate', 'date', 'created_at']
+
 class CurrencySerializerMixin(serializers.Serializer):
     currency_symbol = serializers.SerializerMethodField()
     currency_name = serializers.SerializerMethodField()

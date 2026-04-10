@@ -83,6 +83,11 @@ class SupplierSerializer(serializers.ModelSerializer):
         result = []
         currencies = Currency.objects.filter(tenant=obj.tenant)
         for cur in currencies:
+            # We need the most recent exchange rate for the base_equivalent
+            from core.models import CurrencyExchangeRate
+            rate_obj = CurrencyExchangeRate.objects.filter(tenant=obj.tenant, currency=cur).order_by('-date').first()
+            rate = float(rate_obj.rate) if rate_obj else 1.0
+            
             balance = float(LedgerEntry.get_balance(
                 tenant=obj.tenant,
                 account_type='supplier',
@@ -95,6 +100,7 @@ class SupplierSerializer(serializers.ModelSerializer):
                     'currency_name': cur.name,
                     'currency_symbol': cur.symbol,
                     'amount': balance,
+                    'base_equivalent': round(balance * rate, 3)
                 })
         return result
 
@@ -108,25 +114,35 @@ class CustomerSerializer(serializers.ModelSerializer):
         model = Customer
         fields = [
             'id', 'name', 'phone', 'customer_type',
-            'credit_balance', 'credit_limit', 'is_active', 'notes', 'balances',
+            'credit_balance', 'credit_limit',
+            'is_active', 'notes', 'balances',
         ]
         read_only_fields = ['id', 'credit_balance']
 
+
     def get_balances(self, obj):
         result = []
-        currencies = Currency.objects.filter(tenant=obj.tenant)
-        for cur in currencies:
-            balance = float(LedgerEntry.get_balance(
-                tenant=obj.tenant,
-                account_type='customer',
-                account_id=obj.id,
-                currency_code=cur.code,
-            ))
-            if balance != 0:
-                result.append({
-                    'currency_code': cur.code,
-                    'currency_name': cur.name,
-                    'currency_symbol': cur.symbol,
-                    'amount': balance,
-                })
+        try:
+            currencies = Currency.objects.filter(tenant=obj.tenant)
+            for cur in currencies:
+                from core.models import CurrencyExchangeRate
+                rate_obj = CurrencyExchangeRate.objects.filter(tenant=obj.tenant, currency=cur).order_by('-date').first()
+                rate = float(rate_obj.rate) if rate_obj else 1.0
+
+                balance = float(LedgerEntry.get_balance(
+                    tenant=obj.tenant,
+                    account_type='customer',
+                    account_id=obj.id,
+                    currency_code=cur.code,
+                ))
+                if balance != 0:
+                    result.append({
+                        'currency_code': cur.code,
+                        'currency_name': cur.name,
+                        'currency_symbol': cur.symbol,
+                        'amount': balance,
+                        'base_equivalent': round(balance * rate, 3)
+                    })
+        except:
+            pass
         return result

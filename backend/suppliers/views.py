@@ -1,7 +1,8 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from decimal import Decimal
 
 from .models import CommissionType, Supplier, Customer
 from .serializers import CommissionTypeSerializer, SupplierSerializer, CustomerSerializer
@@ -49,32 +50,45 @@ class SupplierViewSet(viewsets.ModelViewSet):
             tenant=tenant,
             account_type='supplier',
             account_id=supplier.id,
-        ).order_by('-entry_date')
+        )
 
-        running = 0
+        from_date = request.query_params.get('from')
+        to_date   = request.query_params.get('to')
+        if from_date:
+            entries = entries.filter(entry_date__date__gte=from_date)
+        if to_date:
+            entries = entries.filter(entry_date__date__lte=to_date)
+
+        entries = entries.order_by('-entry_date')
+
+        running_base = Decimal('0')
         statement_data = []
         for entry in reversed(list(entries)):
             if entry.entry_type == 'CR':
-                running += float(entry.amount)
+                running_base += entry.base_amount
             else:
-                running -= float(entry.amount)
+                running_base -= entry.base_amount
             statement_data.append({
-                'date':        entry.entry_date,
-                'type':        entry.entry_type,
-                'reference':   f"{entry.reference_type} #{entry.reference_id}",
-                'description': entry.description,
-                'amount':      float(entry.amount),
-                'balance':     round(running, 2),
-                'currency':    entry.currency_code,
+                'date':           entry.entry_date,
+                'type':           entry.entry_type,
+                'reference':      f"{entry.reference_type} #{entry.reference_id}",
+                'description':    entry.description,
+                'currency':       entry.currency_code,
+                'exchange_rate':  float(entry.exchange_rate),
+                'foreign_amount': float(entry.foreign_amount),
+                'base_amount':    float(entry.base_amount),
+                'balance_base':   float(running_base.quantize(Decimal('0.001'))),
             })
 
+        supplier_data = SupplierSerializer(supplier, context={'request': request}).data
         return Response({
-            'supplier_name': supplier.name,
-            'phone':         supplier.phone,
-            'whatsapp':      supplier.whatsapp_number,
-            'commission':    SupplierSerializer(supplier, context={'request': request}).data['commission_rate'],
-            'current_balance': round(running, 2),
-            'entries':       list(reversed(statement_data)),
+            'supplier_name':     supplier.name,
+            'phone':             supplier.phone,
+            'whatsapp':          supplier.whatsapp_number,
+            'commission':        supplier_data['commission_rate'],
+            'current_balances':  supplier_data['balances'],
+            'current_balance_ils': float(running_base.quantize(Decimal('0.001'))),
+            'entries':           list(reversed(statement_data)),
         })
 
 
@@ -82,6 +96,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
 class CustomerViewSet(viewsets.ModelViewSet):
     serializer_class = CustomerSerializer
+    pagination_class = None
     filter_backends  = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['customer_type', 'is_active']
     search_fields    = ['name', 'phone']
@@ -90,7 +105,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Customer.objects.filter(
             tenant=self.request.tenant
-        ).order_by('-credit_balance', 'name')
+        ).order_by('name')
 
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.tenant)
@@ -104,30 +119,43 @@ class CustomerViewSet(viewsets.ModelViewSet):
             tenant=tenant,
             account_type='customer',
             account_id=customer.id,
-        ).order_by('-entry_date')
+        )
 
-        running = 0
+        from_date = request.query_params.get('from')
+        to_date   = request.query_params.get('to')
+        if from_date:
+            entries = entries.filter(entry_date__date__gte=from_date)
+        if to_date:
+            entries = entries.filter(entry_date__date__lte=to_date)
+
+        entries = entries.order_by('-entry_date')
+
+        running_base = Decimal('0')
         statement_data = []
         for entry in reversed(list(entries)):
             if entry.entry_type == 'DR':
-                running += float(entry.amount)
+                running_base += entry.base_amount
             else:
-                running -= float(entry.amount)
+                running_base -= entry.base_amount
             statement_data.append({
-                'date':        entry.entry_date,
-                'type':        entry.entry_type,
-                'reference':   f"{entry.reference_type} #{entry.reference_id}",
-                'description': entry.description,
-                'amount':      float(entry.amount),
-                'balance':     round(running, 2),
-                'currency':    entry.currency_code,
+                'date':           entry.entry_date,
+                'type':           entry.entry_type,
+                'reference':      f"{entry.reference_type} #{entry.reference_id}",
+                'description':    entry.description,
+                'currency':       entry.currency_code,
+                'exchange_rate':  float(entry.exchange_rate),
+                'foreign_amount': float(entry.foreign_amount),
+                'base_amount':    float(entry.base_amount),
+                'balance_base':   float(running_base.quantize(Decimal('0.001'))),
             })
 
+        customer_data = CustomerSerializer(customer, context={'request': request}).data
         return Response({
-            'customer_name':   customer.name,
-            'phone':           customer.phone,
-            'current_balance': round(running, 2),
-            'entries':         list(reversed(statement_data)),
+            'customer_name':       customer.name,
+            'phone':               customer.phone,
+            'current_balances':    customer_data['balances'],
+            'current_balance_ils': float(running_base.quantize(Decimal('0.001'))),
+            'entries':             list(reversed(statement_data)),
         })
 
     @action(detail=False, methods=['get'], url_path='balance-report')

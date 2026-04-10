@@ -111,9 +111,15 @@ export default function SupplierStatement() {
                           <span className="bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">{e.reference.split('#')[0]}</span>
                           <span className="ml-1">#{e.reference.split('#')[1]?.substring(0,6)}</span>
                        </td>
-                       <td className="px-6 py-5 font-black text-rose-600">{e.type === 'DR' ? parseFloat(e.amount).toLocaleString() : '---'}</td>
-                       <td className="px-6 py-5 font-black text-emerald-700">{e.type === 'CR' ? parseFloat(e.amount).toLocaleString() : '---'}</td>
-                       <td className="px-6 py-5 font-black text-zinc-400 text-xs">---</td>
+                       <td className="px-6 py-5 font-black text-rose-600">
+                          {e.type === 'DR' ? `${parseFloat(e.foreign_amount).toLocaleString()} ${e.currency}` : '---'}
+                       </td>
+                       <td className="px-6 py-5 font-black text-emerald-700">
+                          {e.type === 'CR' ? `${parseFloat(e.foreign_amount).toLocaleString()} ${e.currency}` : '---'}
+                       </td>
+                       <td className="px-6 py-5 font-black text-zinc-400 text-xs">
+                          {parseFloat(e.balance_base).toLocaleString()} ₪
+                       </td>
                     </tr>
                   ))}
                </tbody>

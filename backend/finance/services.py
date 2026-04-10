@@ -23,23 +23,36 @@ class SettlementService:
         from sales.models import SaleItem
         from inventory.models import ShipmentItem
 
-        # ── Total sales for this shipment ───────────────────────────────────
-        sales_agg = SaleItem.objects.filter(
+        # ── Commission via POS specific rates (Module 1 fix - Integrated) ──
+        # Sum commission amounts for each sale item
+        sale_items = SaleItem.objects.filter(
             shipment_item__shipment=self.shipment,
             sale__is_cancelled=False,
             sale__tenant=self.tenant,
-        ).aggregate(total=Sum('subtotal'))
-        total_sales = (sales_agg['total'] or Decimal('0')).quantize(MONEY, ROUND_HALF_UP)
-
-        # ── Commission via CommissionType FK (Module 1 fix) ─────────────────
-        ct = self.supplier.commission_type
-        if ct:
-            if ct.calc_type == 'percent':
-                commission = (total_sales * (ct.default_rate / Decimal('100'))).quantize(MONEY, ROUND_HALF_UP)
+        )
+        
+        commission = Decimal('0.00')
+        total_sales = Decimal('0.00')
+        
+        for si in sale_items:
+            total_sales += si.subtotal
+            
+            # If a specific rate was recorded at POS (not 0), use it
+            if si.commission_rate and si.commission_rate > 0:
+                # Assuming commission_rate in POS is percentage
+                commission += (si.subtotal * (si.commission_rate / Decimal('100')))
             else:
-                commission = ct.default_rate.quantize(MONEY, ROUND_HALF_UP)
-        else:
-            commission = Decimal('0.00')
+                # Fallback to supplier default
+                ct = self.supplier.commission_type
+                if ct:
+                    if ct.calc_type == 'percent':
+                        commission += (si.subtotal * (ct.default_rate / Decimal('100')))
+                    else:
+                        # Fixed amount per line as a fallback
+                        commission += ct.default_rate
+        
+        commission = commission.quantize(MONEY, ROUND_HALF_UP)
+        total_sales = total_sales.quantize(MONEY, ROUND_HALF_UP)
 
         # ── Module 2: Extra costs per ShipmentItem ──────────────────────────
         items_agg = ShipmentItem.objects.filter(shipment=self.shipment).aggregate(
@@ -53,7 +66,7 @@ class SettlementService:
 
         # Existing generic expenses (linked to shipment)
         from finance.models import Expense
-        exp_agg = Expense.objects.filter(shipment=self.shipment).aggregate(total=Sum('amount'))
+        exp_agg = Expense.objects.filter(shipment=self.shipment).aggregate(total=Sum('base_amount'))
         generic_expenses = (exp_agg['total'] or Decimal('0')).quantize(MONEY, ROUND_HALF_UP)
 
         total_expenses = (plastic_cost + labor_cost + transport_cost + generic_expenses).quantize(MONEY, ROUND_HALF_UP)
@@ -132,8 +145,21 @@ class SettlementService:
 class LedgerService:
 
     @staticmethod
+    @transaction.atomic
     def record_sale_reversal(sale, user=None):
-        pass  # Placeholder for H-01 — reversal handled in SaleViewSet
+        """CR customer/cash → DR revenue (Reverse the original sale)"""
+        acct_type = 'cash' if sale.payment_type == 'cash' else 'customer'
+        LedgerService._double_entry(
+            tenant=sale.tenant,
+            dr_type='revenue',   dr_id=sale.tenant.id,
+            cr_type=acct_type,   cr_id=sale.customer_id or sale.tenant.id,
+            amount=sale.foreign_amount,
+            exchange_rate=sale.exchange_rate,
+            currency_code=getattr(sale, 'currency_code', 'ILS'),
+            ref_type='sale_reversal', ref_id=sale.id,
+            description=f'إلغاء فاتورة بيع #{sale.id}',
+            user=user,
+        )
 
     @staticmethod
     @transaction.atomic
@@ -144,7 +170,9 @@ class LedgerService:
             tenant=sale.tenant,
             dr_type=acct_type, dr_id=sale.customer_id or sale.tenant.id,
             cr_type='revenue',   cr_id=sale.tenant.id,
-            amount=sale.total_amount,
+            amount=sale.foreign_amount,
+            exchange_rate=sale.exchange_rate,
+            currency_code=getattr(sale, 'currency_code', 'ILS'),
             ref_type='sale', ref_id=sale.id,
             description=f'فاتورة بيع #{sale.id}',
             user=sale.created_by,
@@ -171,7 +199,7 @@ class LedgerService:
         entries.append(LedgerEntry(
             tenant=tenant, entry_type=LedgerEntry.CREDIT,
             account_type='supplier', account_id=settlement.supplier.id,
-            amount=settlement.net_supplier,
+            foreign_amount=settlement.net_supplier, base_amount=settlement.net_supplier, exchange_rate=1, currency_code=settlement.currency_code,
             reference_type='settlement', reference_id=sid,
             description=f'تصفية إرسالية — صافي مستحق للمورد {name}',
             created_by=user,
@@ -181,7 +209,7 @@ class LedgerService:
         entries.append(LedgerEntry(
             tenant=tenant, entry_type=LedgerEntry.CREDIT,
             account_type='commission_revenue', account_id=tenant.id,
-            amount=settlement.commission_amount,
+            foreign_amount=settlement.commission_amount, base_amount=settlement.commission_amount, exchange_rate=1, currency_code=settlement.currency_code,
             reference_type='settlement', reference_id=sid,
             description=f'عمولة تصفية — {name}',
             created_by=user,
@@ -191,7 +219,7 @@ class LedgerService:
         entries.append(LedgerEntry(
             tenant=tenant, entry_type=LedgerEntry.DEBIT,
             account_type='cost_of_goods', account_id=tenant.id,
-            amount=settlement.total_sales,
+            foreign_amount=settlement.total_sales, base_amount=settlement.total_sales, exchange_rate=1, currency_code=settlement.currency_code,
             reference_type='settlement', reference_id=sid,
             description=f'تصفية — تكلفة البضاعة من {name}',
             created_by=user,
@@ -210,7 +238,7 @@ class LedgerService:
                 entries.append(LedgerEntry(
                     tenant=tenant, entry_type=LedgerEntry.DEBIT,
                     account_type=acct, account_id=tenant.id,
-                    amount=amount,
+                    foreign_amount=amount, base_amount=amount, exchange_rate=1, currency_code=settlement.currency_code,
                     reference_type='settlement', reference_id=sid,
                     description=f'مصروف {label} — {name}',
                     created_by=user,
@@ -219,7 +247,7 @@ class LedgerService:
                 entries.append(LedgerEntry(
                     tenant=tenant, entry_type=LedgerEntry.CREDIT,
                     account_type='supplier', account_id=settlement.supplier.id,
-                    amount=amount,
+                    foreign_amount=amount, base_amount=amount, exchange_rate=1, currency_code=settlement.currency_code,
                     reference_type='settlement', reference_id=sid,
                     description=f'خصم {label} من مستحقات {name}',
                     created_by=user,
@@ -229,7 +257,7 @@ class LedgerService:
 
     @staticmethod
     @transaction.atomic
-    def record_supplier_payment(tenant, supplier, amount, user=None, reference_id=None):
+    def record_supplier_payment(tenant, supplier, amount, user=None, reference_id=None, currency_code='ILS'):
         """DR supplier → CR cash (paying the farmer)"""
         amount = Decimal(str(amount)).quantize(MONEY, ROUND_HALF_UP)
         LedgerService._double_entry(
@@ -237,6 +265,7 @@ class LedgerService:
             dr_type='supplier', dr_id=supplier.id,
             cr_type='cash',     cr_id=tenant.id,
             amount=amount,
+            currency_code=currency_code,
             ref_type='supplier_payment', ref_id=reference_id or supplier.id,
             description=f'دفع للمورد: {supplier.name}',
             user=user,
@@ -244,7 +273,25 @@ class LedgerService:
 
     @staticmethod
     @transaction.atomic
-    def record_customer_collection(tenant, customer, amount, user=None, reference_id=None):
+    def record_general_expense(expense, user=None):
+        """DR general_expense → CR cash (Manual expense entry)"""
+        if not hasattr(LedgerService, '_double_entry'):
+             from .services import LedgerService # Safekeeping
+        LedgerService._double_entry(
+            tenant=expense.tenant,
+            dr_type='general_expense', dr_id=expense.category.id if expense.category else expense.tenant.id,
+            cr_type='cash',            cr_id=expense.tenant.id,
+            amount=expense.foreign_amount,
+            exchange_rate=expense.exchange_rate,
+            currency_code=expense.currency_code,
+            ref_type='general_expense', ref_id=expense.id,
+            description=expense.description or f"مصروف: {expense.category.name if expense.category else 'عام'}",
+            user=user,
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def record_customer_collection(tenant, customer, amount, user=None, reference_id=None, currency_code='ILS'):
         """DR cash → CR customer (collecting from trader)"""
         amount = Decimal(str(amount)).quantize(MONEY, ROUND_HALF_UP)
         LedgerService._double_entry(
@@ -252,6 +299,7 @@ class LedgerService:
             dr_type='cash',     dr_id=tenant.id,
             cr_type='customer', cr_id=customer.id,
             amount=amount,
+            currency_code=currency_code,
             ref_type='customer_collection', ref_id=reference_id or customer.id,
             description=f'سداد ذمة العميل: {customer.name}',
             user=user,
@@ -270,6 +318,7 @@ class LedgerService:
             cr_type='customer' if orig.payment_type == 'credit' else 'cash',
             cr_id=orig.customer_id or orig.tenant.id,
             amount=sale_return.return_amount,
+            currency_code=getattr(orig, 'currency_code', 'ILS'),
             ref_type='sale_return', ref_id=sale_return.id,
             description=f'مرتجع مبيعات — فاتورة #{orig.id}',
             user=user,
@@ -285,6 +334,7 @@ class LedgerService:
             dr_type='salary_expense',  dr_id=payroll_line.payroll_run.tenant.id,
             cr_type='cash',            cr_id=payroll_line.payroll_run.tenant.id,
             amount=amt,
+            currency_code=getattr(payroll_line.payroll_run.tenant, 'base_currency_code', 'ILS'),
             ref_type='payroll', ref_id=payroll_line.id,
             description=f'راتب {payroll_line.employee.name} — {payroll_line.payroll_run.run_date}',
             user=user,
@@ -298,7 +348,9 @@ class LedgerService:
             tenant=check_obj.tenant,
             dr_type='bank_account', dr_id=check_obj.tenant.id,
             cr_type='checks_wallet', cr_id=check_obj.tenant.id,
-            amount=check_obj.amount,
+            amount=check_obj.foreign_amount,
+            exchange_rate=check_obj.exchange_rate,
+            currency_code=getattr(check_obj, 'currency_code', 'ILS'),
             ref_type='check', ref_id=check_obj.id,
             description=f'إيداع شيك #{check_obj.check_number} — {check_obj.bank_name}',
             user=user,
@@ -312,7 +364,9 @@ class LedgerService:
             tenant=check_obj.tenant,
             dr_type='checks_wallet', dr_id=check_obj.tenant.id,
             cr_type='bank_account',  cr_id=check_obj.tenant.id,
-            amount=check_obj.amount,
+            amount=check_obj.foreign_amount,
+            exchange_rate=check_obj.exchange_rate,
+            currency_code=getattr(check_obj, 'currency_code', 'ILS'),
             ref_type='check_bounce', ref_id=check_obj.id,
             description=f'شيك مرتجع #{check_obj.check_number} — {check_obj.bank_name}',
             user=user,
@@ -322,19 +376,97 @@ class LedgerService:
 
     @staticmethod
     @transaction.atomic
-    def _double_entry(tenant, dr_type, dr_id, cr_type, cr_id, amount, ref_type, ref_id, description, user):
-        amt = Decimal(str(amount)).quantize(MONEY, ROUND_HALF_UP)
+    def _double_entry(tenant, dr_type, dr_id, cr_type, cr_id, amount, ref_type, ref_id, description, user, currency_code='ILS', exchange_rate=1):
+        amt = Decimal(str(amount)).quantize(Decimal('0.001'), ROUND_HALF_UP)
+        xr = Decimal(str(exchange_rate))
+        base_amt = (amt * xr).quantize(Decimal('0.001'), ROUND_HALF_UP)
+
         LedgerEntry.objects.bulk_create([
             LedgerEntry(
                 tenant=tenant, entry_type=LedgerEntry.DEBIT,
+                currency_code=currency_code, exchange_rate=xr,
                 account_type=dr_type, account_id=dr_id,
-                amount=amt, reference_type=ref_type, reference_id=ref_id,
+                foreign_amount=amt, base_amount=base_amt, 
+                reference_type=ref_type, reference_id=ref_id,
                 description=description, created_by=user,
             ),
             LedgerEntry(
                 tenant=tenant, entry_type=LedgerEntry.CREDIT,
+                currency_code=currency_code, exchange_rate=xr,
                 account_type=cr_type, account_id=cr_id,
-                amount=amt, reference_type=ref_type, reference_id=ref_id,
+                foreign_amount=amt, base_amount=base_amt,
+                reference_type=ref_type, reference_id=ref_id,
                 description=description, created_by=user,
             ),
         ])
+
+    # ─── BRD: Automatic Exchange Rate Difference (Forex Gain / Loss) ───────────
+
+    @staticmethod
+    @transaction.atomic
+    def record_forex_adjustment(tenant, account_type, account_id, currency_code,
+                                 original_rate, new_rate, foreign_balance, ref_id, user=None):
+        """
+        Creates an automatic adjustment journal entry when the exchange rate changes,
+        booking the difference as Forex Gain or Forex Loss.
+
+        Example (BRD requirement):
+          Customer owes us JOD 1,000 @ 3.85 ILS → booked as ILS 3,850
+          Rate changes to 3.90 → revalued at ILS 3,900
+          Difference = ILS 50 GAIN → book DR customer / CR forex_gain
+
+        Args:
+            original_rate:    the rate when the transaction was initially booked
+            new_rate:         the new (current) exchange rate
+            foreign_balance:  the open balance in the foreign currency to revalue
+        """
+        orig = Decimal(str(original_rate)).quantize(Decimal('0.000001'), ROUND_HALF_UP)
+        curr = Decimal(str(new_rate)).quantize(Decimal('0.000001'), ROUND_HALF_UP)
+        fbal = Decimal(str(foreign_balance)).quantize(Decimal('0.001'), ROUND_HALF_UP)
+
+        if orig == curr or fbal == Decimal('0'):
+            return None  # No adjustment needed
+
+        old_base = (fbal * orig).quantize(Decimal('0.001'), ROUND_HALF_UP)
+        new_base = (fbal * curr).quantize(Decimal('0.001'), ROUND_HALF_UP)
+        diff = (new_base - old_base).quantize(Decimal('0.001'), ROUND_HALF_UP)
+
+        if diff == Decimal('0'):
+            return None
+
+        is_gain = diff > Decimal('0')
+        abs_diff = abs(diff)
+
+        if account_type == 'customer':
+            # Customer owes us → if rate goes up → we gain more ILS
+            if is_gain:
+                dr_type, cr_type = account_type, 'forex_gain'
+            else:
+                dr_type, cr_type = 'forex_loss', account_type
+        else:
+            # Supplier we owe → if rate goes up → we owe more ILS (loss)
+            if is_gain:
+                dr_type, cr_type = 'forex_loss', account_type
+            else:
+                dr_type, cr_type = account_type, 'forex_gain'
+
+        adj_desc = (
+            f'فرق سعر صرف {currency_code}: من {orig} → {curr} | '
+            f'رصيد {fbal} {currency_code} | '
+            f'{"مكسب" if is_gain else "خسارة"} صرف: {abs_diff} ₪'
+        )
+
+        LedgerService._double_entry(
+            tenant=tenant,
+            dr_type=dr_type, dr_id=account_id,
+            cr_type=cr_type, cr_id=account_id,
+            amount=abs_diff,
+            exchange_rate=1,  # Adjustment is already in ILS
+            currency_code='ILS',
+            ref_type='forex_adjustment',
+            ref_id=ref_id,
+            description=adj_desc,
+            user=user,
+        )
+        return diff
+

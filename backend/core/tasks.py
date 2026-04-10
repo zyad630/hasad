@@ -17,9 +17,9 @@ def build_daily_snapshots():
         # Sales stats
         today_sales = Sale.objects.filter(tenant=tenant, sale_date__date=today)
         sales_count = today_sales.count()
-        sales_total = today_sales.aggregate(t=Sum('total_amount'))['t'] or 0
-        cash_sales = today_sales.filter(payment_type='cash').aggregate(t=Sum('total_amount'))['t'] or 0
-        credit_sales = today_sales.filter(payment_type='credit').aggregate(t=Sum('total_amount'))['t'] or 0
+        sales_total = today_sales.aggregate(t=Sum('base_amount'))['t'] or 0
+        cash_sales = today_sales.filter(payment_type='cash').aggregate(t=Sum('base_amount'))['t'] or 0
+        credit_sales = today_sales.filter(payment_type='credit').aggregate(t=Sum('base_amount'))['t'] or 0
         
         # Settlements
         today_settlements = Settlement.objects.filter(tenant=tenant, settled_at__date=today)

@@ -77,12 +77,17 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
             return Response({'error': 'تم تحويل الطلب مسبقاً'}, status=400)
 
         payment_type = request.data.get('payment_type', 'credit')
+        currency_code = request.data.get('currency_code', 'ILS')
+        exchange_rate = Decimal(str(request.data.get('exchange_rate', 1)))
         sale = Sale.objects.create(
             tenant=order.tenant,
             customer=order.customer,
             created_by=request.user,
             payment_type=payment_type,
-            total_amount=0,
+            currency_code=currency_code,
+            exchange_rate=exchange_rate,
+            foreign_amount=Decimal('0'),
+            base_amount=Decimal('0'),
         )
         total = Decimal('0')
         for oi in order.items.all():
@@ -108,8 +113,11 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
             si.save(update_fields=['remaining_qty'])
             total += subtotal
 
-        sale.total_amount = total
-        sale.save(update_fields=['total_amount'])
+        foreign = total.quantize(Decimal('0.001'))
+        base = (foreign * exchange_rate).quantize(Decimal('0.001'))
+        sale.foreign_amount = foreign
+        sale.base_amount = base
+        sale.save(update_fields=['foreign_amount', 'base_amount'])
 
         order.status = 'delivered'
         order.converted_sale = sale
@@ -378,12 +386,12 @@ class AdvancedCheckViewSet(viewsets.ModelViewSet):
         """Get total value of checks in wallet by direction."""
         from django.db.models import Sum
         qs = self.get_queryset()
-        incoming = qs.filter(lifecycle=CheckLifecycle.IN_WALLET, direction='incoming').aggregate(total=Sum('amount'))
-        outgoing = qs.filter(lifecycle=CheckLifecycle.IN_WALLET, direction='outgoing').aggregate(total=Sum('amount'))
+        incoming = qs.filter(lifecycle=CheckLifecycle.IN_WALLET, direction='incoming').aggregate(total=Sum('base_amount'))
+        outgoing = qs.filter(lifecycle=CheckLifecycle.IN_WALLET, direction='outgoing').aggregate(total=Sum('base_amount'))
         due_soon = qs.filter(
             lifecycle=CheckLifecycle.IN_WALLET,
             due_date__lte=timezone.now().date() + timezone.timedelta(days=7)
-        ).values('check_number', 'bank_name', 'due_date', 'amount', 'direction')
+        ).values('check_number', 'bank_name', 'due_date', 'base_amount', 'direction')
         return Response({
             'incoming_total': float(incoming['total'] or 0),
             'outgoing_total': float(outgoing['total'] or 0),

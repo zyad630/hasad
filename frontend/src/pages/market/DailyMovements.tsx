@@ -52,11 +52,11 @@ export default function DailyMovements() {
 
   // ── All state declarations ──────────────────────────────────────────────────
   const [newRow, setNewRow] = useState<any>({
-    supplier: '', item_name: '', unit: '', count: 0,
-    gross_weight: 0, net_weight: 0, purchase_price: 0,
-    commission_rate: 5, buyer: '', sale_qty: 0, sale_price: 0,
-    box_price: 0, currency: 1, cash_received: 0, check_received: 0,
-    expense_amount: 0
+    supplier: '', item_name: '', unit: '', count: '',
+    gross_weight: '', net_weight: '', purchase_price: '',
+    commission_rate: 5, buyer: '', sale_qty: '', sale_price: '',
+    box_price: 0, currency: '', cash_received: '', check_received: '',
+    expense_amount: ''
   });
 
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
@@ -112,8 +112,16 @@ export default function DailyMovements() {
         cash_received: 0, check_received: 0, expense_amount: 0
       });
       setTempChecks([]);
-    } catch (err) {
-      showToast('خطأ في الحفظ', 'error');
+    } catch (err: any) {
+      if (err?.data && !err?.data?.detail) {
+         const errorMsgs = Object.entries(err.data).map(([k, v]) => {
+            if (Array.isArray(v)) return `${k}: ${v.join(', ')}`;
+            return `${k}: ${v}`;
+         }).join(' | ');
+         showToast(errorMsgs, 'error');
+      } else {
+         showToast(err?.data?.detail || 'حدث خطأ في الحفظ', 'error');
+      }
     }
   };
 
@@ -139,6 +147,24 @@ export default function DailyMovements() {
          });
       }
     }, 1500);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, field: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const flow = [
+        'expense_amount', 'supplier', 'item_name', 'count', 
+        'gross_weight', 'net_weight', 'purchase_price', 
+        'buyer', 'sale_qty', 'sale_price', 'box_price', 'cash_received'
+      ];
+      const currentIndex = flow.indexOf(field);
+      if (currentIndex > -1 && currentIndex < flow.length - 1) {
+        const nextField = flow[currentIndex + 1];
+        document.getElementById(`nr-${nextField}`)?.focus();
+      } else if (currentIndex === flow.length - 1) {
+        handleSave();
+      }
+    }
   };
 
   if (isLoading) return <TableSkeleton titleWidth="300px" rows={10} columns={10} />;
@@ -200,20 +226,23 @@ export default function DailyMovements() {
                      <td className="px-4 py-3"><div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-black text-xs">جديد</div></td>
                      <td className="px-4 py-3 border-l border-zinc-100">
                         <div className="flex flex-col gap-1">
-                           <input className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center text-rose-600 focus:ring-2 focus:ring-rose-500" placeholder="0.00" value={newRow.expense_amount} onChange={e => setNewRow({...newRow, expense_amount: e.target.value})} />
+                           <input id="nr-expense_amount" onKeyDown={e => handleKeyDown(e, 'expense_amount')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center text-rose-600 focus:ring-2 focus:ring-rose-500" placeholder="0.00" value={newRow.expense_amount} onChange={e => setNewRow({...newRow, expense_amount: e.target.value})} />
                            <select className="text-[10px] bg-transparent border-none font-bold text-zinc-400" value={newRow.currency} onChange={e => setNewRow({...newRow, currency: e.target.value})}>
+                              <option value="" disabled>العملة</option>
                               {currencies.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                            </select>
                         </div>
                      </td>
                      <td className="px-4 py-3">
-                        <select className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" value={newRow.supplier} onChange={e => setNewRow({...newRow, supplier: e.target.value})}>
+                        <select id="nr-supplier" onKeyDown={e => handleKeyDown(e, 'supplier')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" value={newRow.supplier} onChange={e => setNewRow({...newRow, supplier: e.target.value})}>
                            <option value="">المزارع...</option>
                            {(suppliers?.results || suppliers || []).map((s:any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                      </td>
                      <td className="px-4 py-3">
                         <input 
+                           id="nr-item_name"
+                           onKeyDown={e => handleKeyDown(e, 'item_name')}
                            list="items-list"
                            className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" 
                            placeholder="الصنف..." 
@@ -225,16 +254,16 @@ export default function DailyMovements() {
                         </datalist>
                      </td>
                      <td className="px-4 py-3">
-                          <input className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.count} onChange={e => setNewRow({...newRow, count: e.target.value})} />
+                          <input id="nr-count" onKeyDown={e => handleKeyDown(e, 'count')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.count} onChange={e => setNewRow({...newRow, count: e.target.value})} />
                      </td>
                      <td className="px-4 py-3">
                           <div className="flex gap-1">
-                             <input className="w-1/2 bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black" placeholder="قائم" value={newRow.gross_weight} onChange={e => setNewRow({...newRow, gross_weight: e.target.value})} />
-                             <input className="w-1/2 bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black" placeholder="صافي" value={newRow.net_weight} onChange={e => setNewRow({...newRow, net_weight: e.target.value})} />
+                             <input id="nr-gross_weight" onKeyDown={e => handleKeyDown(e, 'gross_weight')} className="w-1/2 bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black" placeholder="قائم" value={newRow.gross_weight} onChange={e => setNewRow({...newRow, gross_weight: e.target.value})} />
+                             <input id="nr-net_weight" onKeyDown={e => handleKeyDown(e, 'net_weight')} className="w-1/2 bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black" placeholder="صافي" value={newRow.net_weight} onChange={e => setNewRow({...newRow, net_weight: e.target.value})} />
                           </div>
                      </td>
                      <td className="px-4 py-3">
-                          <input className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.purchase_price} onChange={e => setNewRow({...newRow, purchase_price: e.target.value})} />
+                          <input id="nr-purchase_price" onKeyDown={e => handleKeyDown(e, 'purchase_price')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.purchase_price} onChange={e => setNewRow({...newRow, purchase_price: e.target.value})} />
                      </td>
                      <td className="px-4 py-3 bg-emerald-50/10">
                           <div className="text-[10px] font-black text-emerald-800 text-center">
@@ -243,16 +272,16 @@ export default function DailyMovements() {
                           </div>
                      </td>
                      <td className="px-4 py-3 border-r border-zinc-100">
-                        <select className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" value={newRow.buyer} onChange={e => setNewRow({...newRow, buyer: e.target.value})}>
+                        <select id="nr-buyer" onKeyDown={e => handleKeyDown(e, 'buyer')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" value={newRow.buyer} onChange={e => setNewRow({...newRow, buyer: e.target.value})}>
                            <option value="">المشتري...</option>
                            {(customers?.results || customers || []).map((c:any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                      </td>
                      <td className="px-4 py-3">
-                        <input className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.sale_qty} onChange={e => setNewRow({...newRow, sale_qty: e.target.value})} />
+                        <input id="nr-sale_qty" onKeyDown={e => handleKeyDown(e, 'sale_qty')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.sale_qty} onChange={e => setNewRow({...newRow, sale_qty: e.target.value})} />
                      </td>
                      <td className="px-4 py-3">
-                        <input className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.sale_price} onChange={e => setNewRow({...newRow, sale_price: e.target.value})} />
+                        <input id="nr-sale_price" onKeyDown={e => handleKeyDown(e, 'sale_price')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.sale_price} onChange={e => setNewRow({...newRow, sale_price: e.target.value})} />
                      </td>
                      <td className="px-4 py-3 bg-indigo-50/10 text-center">
                         <div className="text-xs font-black text-indigo-700">
@@ -260,14 +289,15 @@ export default function DailyMovements() {
                         </div>
                      </td>
                      <td className="px-4 py-3">
-                        <input className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center text-zinc-400 text-xs" value={newRow.box_price} onChange={e => setNewRow({...newRow, box_price: e.target.value})} />
+                        <input id="nr-box_price" onKeyDown={e => handleKeyDown(e, 'box_price')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center text-zinc-400 text-xs" value={newRow.box_price} onChange={e => setNewRow({...newRow, box_price: e.target.value})} />
                      </td>
                      <td className="px-4 py-3">
                         <div className="flex flex-col gap-1 relative group">
-                           <input title="Cash" className="w-full bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black text-emerald-600 text-center" placeholder="نقدي" value={newRow.cash_received} onChange={e => setNewRow({...newRow, cash_received: e.target.value})} />
+                           <input id="nr-cash_received" onKeyDown={e => handleKeyDown(e, 'cash_received')} title="Cash" className="w-full bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black text-emerald-600 text-center" placeholder="نقدي" value={newRow.cash_received} onChange={e => setNewRow({...newRow, cash_received: e.target.value})} />
                            <div className="relative">
                               <input 
                                 title="Check" 
+                                id="nr-check_received"
                                 className="w-full bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black text-indigo-600 text-center pr-6" 
                                 placeholder="شيك" 
                                 value={newRow.check_received} 

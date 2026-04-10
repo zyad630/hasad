@@ -166,7 +166,7 @@ REST_FRAMEWORK = {
 
 # ─── JWT — H-02: Token rotation + blacklist ───────────────────────────────────
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME':        timedelta(minutes=15),
+    'ACCESS_TOKEN_LIFETIME':        timedelta(days=30) if DEBUG else timedelta(days=1),
     'REFRESH_TOKEN_LIFETIME':       timedelta(days=7),
     'ROTATE_REFRESH_TOKENS':        True,   # Issue new refresh token on every use
     'BLACKLIST_AFTER_ROTATION':     True,   # Invalidate old refresh token immediately

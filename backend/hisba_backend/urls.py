@@ -29,7 +29,7 @@ from market.extra_views import (
     AdvancedCheckViewSet,
 )
 # Reports
-from reports.views import DashboardView, SalesReportView, AgingReportView, UnifiedStatementView
+from reports.views import DashboardView, SalesReportView, AgingReportView, UnifiedStatementView, ReceivablesPayablesView, SalesInvoicesListView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 router = DefaultRouter()
@@ -86,6 +86,8 @@ urlpatterns = [
     path('api/reports/sales/', SalesReportView.as_view(), name='reports_sales'),
     path('api/reports/aging/', AgingReportView.as_view(), name='reports_aging'),
     path('api/reports/unified-statement/', UnifiedStatementView.as_view(), name='unified_statement'),
+    path('api/reports/receivables/', ReceivablesPayablesView.as_view(), name='receivables_payables'),
+    path('api/reports/invoices/', SalesInvoicesListView.as_view(), name='invoices_report'),
 
     # API
     path('api/', include(router.urls)),

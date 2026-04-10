@@ -44,7 +44,10 @@ def make_sale(tenant, user, customer=None):
     sale = Sale.objects.create(
         tenant=tenant, created_by=user,
         customer=customer,
-        total_amount=Decimal('500.00'),
+        currency_code='ILS',
+        exchange_rate=Decimal('1'),
+        foreign_amount=Decimal('500.00'),
+        base_amount=Decimal('500.00'),
     )
     SaleItem.objects.create(
         sale=sale, shipment_item=s_item,

@@ -3,17 +3,18 @@ import { useDispatch } from 'react-redux';
 import { logout } from '../store/authSlice';
 
 const navItems = [
-  { path: '/dashboard', label: 'لوحة التحكم', icon: 'dashboard' },
+  { path: '/dashboard', label: 'الرئيسية', icon: 'dashboard' },
   { path: '/market/floor', label: 'ساحة الحركات', icon: 'analytics' },
-  { path: '/shipments', label: 'الإرساليات', icon: 'inventory_2' },
-  { path: '/sales', label: 'البيع السريع', icon: 'point_of_sale' },
+  { path: '/shipments', label: 'الإرساليات (مشتريات)', icon: 'inventory_2' },
+  { path: '/pos', label: 'المبيعات السريعة (POS)', icon: 'point_of_sale' },
+  { path: '/reports/invoices', label: 'سجل الفواتير', icon: 'receipt_long' },
   { path: '/suppliers', label: 'المزارعين', icon: 'person_apron' },
-  { path: '/customers', label: 'الزبائن / تجار', icon: 'groups' },
+  { path: '/customers', label: 'الزبائن والتجار', icon: 'groups' },
+  { path: '/finance/settlements', label: 'التصفيات (للمزارع)', icon: 'done_all' },
+  { path: '/reports/receivables', label: 'الذمم المالية', icon: 'account_balance_wallet' },
+  { path: '/finance/expenses', label: 'المصاريف', icon: 'payments' },
   { path: '/inventory', label: 'الأصناف والفوارغ', icon: 'package_2' },
-  { path: '/finance', label: 'التصفية', icon: 'rebase_edit' },
-  { path: '/expenses', label: 'المصاريف', icon: 'payments' },
-  { path: '/currencies', label: 'إدارة العملات', icon: 'currency_exchange' },
-  { path: '/settings', label: 'الإعدادات', icon: 'settings' },
+  { path: '/settings/control-panel', label: 'الإعدادات المتقدمة', icon: 'settings' },
 ];
 
 const Sidebar = () => {

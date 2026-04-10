@@ -26,7 +26,7 @@ def api_client():
 def test_cashier_cannot_confirm_settlement(api_client, db_setup):
     api_client.force_authenticate(user=db_setup['cashier'])
     response = api_client.post('/api/settlements/confirm/', {
-        'shipment_id': str(db_setup['ship']['id'])
+        'shipment_id': str(db_setup['ship'].id)
     }, format='json', HTTP_HOST='test.localhost:8000')
     assert response.status_code == 403
     assert 'صلاحية' in str(response.data)
@@ -35,7 +35,7 @@ def test_cashier_cannot_confirm_settlement(api_client, db_setup):
 def test_owner_can_confirm_settlement(api_client, db_setup):
     api_client.force_authenticate(user=db_setup['owner'])
     response = api_client.post('/api/settlements/confirm/', {
-        'shipment_id': str(db_setup['ship']['id'])
+        'shipment_id': str(db_setup['ship'].id)
     }, format='json', HTTP_HOST='test.localhost:8000')
     # Because there are no shipment items or sales, the engine logic might return 400. 
     # That is perfectly fine, we are only testing that we bypassed the 403 PermissionDenied.

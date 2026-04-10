@@ -35,6 +35,8 @@ class DashboardView(APIView):
 
     def get(self, request):
         tenant = request.tenant
+        if tenant is None:
+            return Response({'detail': 'Tenant غير محدد. تأكد من تسجيل الدخول بمستخدم مرتبط بـ Tenant أو استخدم subdomain صحيح.'}, status=400)
         today = date.today()
 
         from core.models import Currency
@@ -154,6 +156,8 @@ class SalesReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء تقرير المبيعات بدون Tenant.'}, status=400)
         date_from = request.query_params.get('from')
         date_to   = request.query_params.get('to')
 
@@ -198,6 +202,8 @@ class AgingReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء تقرير الأعمار بدون Tenant.'}, status=400)
         cache_key = f'report_aging_{request.tenant.id}'
         cached = _cache_get(cache_key)
         if cached is not None:
@@ -245,6 +251,8 @@ class SupplierSettlementSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء تقرير التسويات بدون Tenant.'}, status=400)
         from finance.models import Settlement
 
         cache_key = f'supplier_settlements_{request.tenant.id}'
@@ -281,6 +289,8 @@ class UnifiedStatementView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء كشف حساب بدون Tenant.'}, status=400)
         target_type = request.query_params.get('type')  # 'customer' or 'supplier'
         target_id = request.query_params.get('id')
 
@@ -326,3 +336,181 @@ class UnifiedStatementView(APIView):
             'statement': statement,
             'total_balance_base': statement[-1]['running_balance_base'] if statement else '0.000'
         })
+
+
+class ReceivablesPayablesView(APIView):
+    """
+    REQUIREMENT: ذمم (Receivables & Payables) categorized by party type.
+    GET /api/reports/receivables/
+    Query params:
+      party=farmers|traders|employees|partners|all  (default: all)
+      currency=ILS  (filter by currency, optional)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from finance.models import LedgerEntry
+        from core.models import Currency
+        from suppliers.models import Supplier, Customer, CustomerType
+
+        tenant    = request.tenant
+        if tenant is None:
+            return Response({'detail': 'Tenant غير محدد. لا يمكن حساب الذمم بدون Tenant.'}, status=400)
+        party     = request.query_params.get('party', 'all')
+        cur_filter = request.query_params.get('currency', None)
+        currencies = list(Currency.objects.filter(tenant=tenant).values('code', 'symbol', 'name'))
+
+        result = {
+            'farmers':    [],  # Suppliers (المزارعين) — we owe them
+            'traders':    [],  # Customers type=trader — they owe us
+            'employees':  [],  # Customers type=employee
+            'partners':   [],  # Customers type=partner
+            'other':      [],  # Other customer types
+            'summary': {}
+        }
+
+        def get_ledger_balances(account_type, account_id, is_payable=False):
+            """Returns list of {currency, balance} for a party."""
+            balances = []
+            for cur in currencies:
+                code = cur['code']
+                if cur_filter and code != cur_filter:
+                    continue
+                bal = LedgerEntry.get_balance(
+                    tenant=tenant,
+                    account_type=account_type,
+                    account_id=account_id,
+                    currency_code=code,
+                )
+                # Suppliers: CR-DR = what we owe them (payable)
+                # Customers: DR-CR = what they owe us (receivable)
+                if is_payable:
+                    # For suppliers, get_balance returns DR-CR, but we want CR-DR (what we owe)
+                    bal = -bal
+                if bal != 0:
+                    balances.append({
+                        'currency_code':   code,
+                        'currency_symbol': cur['symbol'],
+                        'currency_name':   cur['name'],
+                        'balance':         str(bal),
+                    })
+            return balances
+
+        # ─── FARMERS (Suppliers) — Payables ─────────────────────────────────
+        if party in ('all', 'farmers'):
+            suppliers = Supplier.objects.filter(tenant=tenant, is_active=True).values('id', 'name', 'phone', 'whatsapp_number', 'deal_type')
+            for s in suppliers:
+                bals = get_ledger_balances('supplier', s['id'], is_payable=True)
+                if bals:
+                    result['farmers'].append({
+                        'id':     str(s['id']),
+                        'name':   s['name'],
+                        'phone':  s['phone'],
+                        'whatsapp': s.get('whatsapp_number'),
+                        'deal_type': s['deal_type'],
+                        'party_type': 'supplier',
+                        'direction': 'payable',  # We owe them
+                        'balances': bals,
+                    })
+
+        # ─── CUSTOMERS by type — Receivables ────────────────────────────────
+        customer_type_map = {
+            'traders':   ['trader', 'retail', 'individual'],
+            'employees': ['employee'],
+            'partners':  ['partner'],
+        }
+
+        for group_key, ctypes in customer_type_map.items():
+            if party not in ('all', group_key):
+                continue
+            customers_qs = Customer.objects.filter(
+                tenant=tenant, is_active=True, customer_type__in=ctypes
+            ).values('id', 'name', 'phone', 'whatsapp_number', 'customer_type', 'credit_limit')
+            for c in customers_qs:
+                bals = get_ledger_balances('customer', c['id'], is_payable=False)
+                if bals:
+                    result[group_key].append({
+                        'id':           str(c['id']),
+                        'name':         c['name'],
+                        'phone':        c['phone'],
+                        'whatsapp':     c.get('whatsapp_number'),
+                        'customer_type': c['customer_type'],
+                        'party_type':   'customer',
+                        'direction':    'receivable',  # They owe us
+                        'credit_limit': str(c.get('credit_limit') or '0'),
+                        'balances':     bals,
+                    })
+
+        # ─── Summary totals (base ILS) ───────────────────────────────────────
+        def sum_base(entries):
+            total = Decimal('0')
+            for e in entries:
+                b = LedgerEntry.get_balance(
+                    tenant=tenant,
+                    account_type='supplier' if e.get('party_type') == 'supplier' else 'customer',
+                    account_id=e['id'],
+                    unified_base=True
+                )
+                if e.get('direction') == 'payable':
+                    total -= b
+                else:
+                    total += b
+            return float(total)
+
+        result['summary'] = {
+            'total_receivable_base': round(sum([
+                float(b['balance']) for e in result['traders'] + result['employees'] + result['partners']
+                for b in e['balances'] if b['currency_code'] == (cur_filter or 'ILS')
+            ]), 3),
+            'total_payable_base': round(sum([
+                float(b['balance']) for e in result['farmers']
+                for b in e['balances'] if b['currency_code'] == (cur_filter or 'ILS')
+            ]), 3),
+            'farmers_count':   len(result['farmers']),
+            'traders_count':   len(result['traders']),
+            'employees_count': len(result['employees']),
+            'partners_count':  len(result['partners']),
+        }
+
+        return Response(result)
+
+
+class SalesInvoicesListView(APIView):
+    """
+    Full invoices list with filters: date range, customer, status, currency.
+    Supports reporting after posting.
+    GET /api/reports/invoices/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Tenant غير محدد. لا يمكن عرض قائمة الفواتير بدون Tenant.'}, status=400)
+        from sales.models import Sale
+        from sales.serializers import SaleSerializer
+
+        qs = Sale.objects.filter(tenant=request.tenant).select_related(
+            'customer', 'created_by'
+        ).prefetch_related('items__shipment_item__item').order_by('-sale_date')
+
+        date_from = request.query_params.get('from')
+        date_to   = request.query_params.get('to')
+        customer  = request.query_params.get('customer')
+        cancelled = request.query_params.get('cancelled')  # 'true'/'false'/'all'
+        currency  = request.query_params.get('currency')
+
+        if date_from:
+            qs = qs.filter(sale_date__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(sale_date__date__lte=date_to)
+        if customer:
+            qs = qs.filter(customer_id=customer)
+        if cancelled == 'true':
+            qs = qs.filter(is_cancelled=True)
+        elif cancelled == 'false':
+            qs = qs.filter(is_cancelled=False)
+        if currency:
+            qs = qs.filter(currency_code=currency)
+
+        data = SaleSerializer(qs[:200], many=True).data
+        return Response({'results': data, 'count': qs.count()})

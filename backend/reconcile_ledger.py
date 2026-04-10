@@ -42,7 +42,7 @@ def reconcile_tenant(tenant):
             # 'in'  = money comes in  → DEBIT  cash account
             # 'out' = money goes out  → CREDIT cash account
             entry_type = LedgerEntry.DEBIT if txn.tx_type == 'in' else LedgerEntry.CREDIT
-            amount = txn.amount.quantize(MONEY, ROUND_HALF_UP)
+            amount = (txn.base_amount or Decimal('0')).quantize(MONEY, ROUND_HALF_UP)
 
             # Use _force_insert to bypass immutability guard (reconciliation only!)
             entry = LedgerEntry(
@@ -50,7 +50,10 @@ def reconcile_tenant(tenant):
                 entry_type=entry_type,
                 account_type='cash',
                 account_id=tenant.id,
-                amount=amount,
+                currency_code=getattr(txn, 'currency_code', 'ILS'),
+                foreign_amount=(txn.foreign_amount or amount).quantize(MONEY, ROUND_HALF_UP),
+                exchange_rate=getattr(txn, 'exchange_rate', Decimal('1')),
+                base_amount=amount,
                 reference_type=txn.reference_type or 'cash_transaction',
                 reference_id=txn.id,
                 description=f'[RECONCILE] {txn.description or txn.reference_type or "cash tx"}',
@@ -70,8 +73,8 @@ def main():
     for tenant in tenants:
         # Check if this tenant has a mismatch
         cash_txn = CashTransaction.objects.filter(tenant=tenant).aggregate(
-            total_in=Sum('amount', filter=Q(tx_type='in')),
-            total_out=Sum('amount', filter=Q(tx_type='out')),
+            total_in=Sum('base_amount', filter=Q(tx_type='in')),
+            total_out=Sum('base_amount', filter=Q(tx_type='out')),
         )
         txn_balance = (
             (cash_txn['total_in'] or Decimal('0')) -

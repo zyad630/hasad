@@ -43,18 +43,30 @@ class Supplier(models.Model):
         return self.name
 
 class CustomerType(models.TextChoices):
-    TRADER = 'trader', 'تاجر / زبون دائم'
-    RETAIL = 'retail', 'قطاعي / تجزئة'
+    TRADER   = 'trader',   'تاجر / زبون دائم'
+    RETAIL   = 'retail',   'قطاعي / تجزئة'
     INDIVIDUAL = 'individual', 'فردي'
+    EMPLOYEE = 'employee', 'موظف'
+    PARTNER  = 'partner',  'شريك'
 
 class Customer(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     name = models.CharField(max_length=200, verbose_name="اسم الزبون / تاجر")
     phone = models.CharField(max_length=20, null=True, blank=True, verbose_name="رقم الهاتف")
+    whatsapp_number = models.CharField(max_length=20, null=True, blank=True, verbose_name="رقم واتساب")
     customer_type = models.CharField(max_length=20, choices=CustomerType.choices, default=CustomerType.TRADER, verbose_name="تصنيف الزبون")
     credit_balance = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="رصيد المديونية")
-    credit_limit = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="حد الائتمان")
+    credit_limit   = models.DecimalField(max_digits=12, decimal_places=3, default=0.00, verbose_name="حد الائتمان")
+    # REQUIREMENT 2: Customer-side commission (added TO the customer invoice)
+    commission_type = models.ForeignKey(
+        CommissionType, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='customers', verbose_name="نوع عمولة الزبون (تُضاف للفاتورة)"
+    )
+    commission_rate = models.DecimalField(
+        max_digits=8, decimal_places=3, default=0,
+        verbose_name="نسبة عمولة الزبون (%) — جزئي إذا لم يُحدد نوع"
+    )
     is_active = models.BooleanField(default=True, verbose_name="نشط")
     notes     = models.TextField(blank=True, null=True, verbose_name="ملاحظات")
 
@@ -64,3 +76,9 @@ class Customer(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_commission_rate(self):
+        """Returns effective commission rate for this customer."""
+        if self.commission_type:
+            return float(self.commission_type.default_rate)
+        return float(self.commission_rate)

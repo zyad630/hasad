@@ -109,15 +109,35 @@ class SupplierSerializer(serializers.ModelSerializer):
 
 class CustomerSerializer(serializers.ModelSerializer):
     balances = serializers.SerializerMethodField()
+    commission_type_detail = CommissionTypeSerializer(source='commission_type', read_only=True)
+    effective_commission_rate = serializers.SerializerMethodField()
 
     class Meta:
         model = Customer
         fields = [
-            'id', 'name', 'phone', 'customer_type',
+            'id', 'name', 'phone', 'whatsapp_number', 'customer_type',
             'credit_balance', 'credit_limit',
+            'commission_type', 'commission_rate', 'commission_type_detail',
+            'effective_commission_rate',
             'is_active', 'notes', 'balances',
         ]
         read_only_fields = ['id', 'credit_balance']
+
+    def get_effective_commission_rate(self, obj):
+        """Returns {'rate': X, 'calc_type': 'percent'/'fixed'} for POS auto-load."""
+        if obj.commission_type:
+            return {
+                'rate':      float(obj.commission_type.default_rate),
+                'calc_type': obj.commission_type.calc_type,
+                'name':      obj.commission_type.name,
+            }
+        if obj.commission_rate:
+            return {
+                'rate':      float(obj.commission_rate),
+                'calc_type': 'percent',
+                'name':      'عمولة مخصصة',
+            }
+        return None
 
 
     def get_balances(self, obj):

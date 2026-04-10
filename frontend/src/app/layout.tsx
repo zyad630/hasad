@@ -41,7 +41,10 @@ export const ProtectedLayout = () => {
                 <nav className="sidebar-nav" id="sidebar-nav">
                     <div className="nav-section-label">الرئيسية</div>
                     <Link to="/dashboard" className={getNavClass('/dashboard', true)}>
-                        <i className="fa-solid fa-chart-pie"></i><span>لوحة التحكم</span>
+                        <i className="fa-solid fa-chart-pie"></i><span>لوحة التحكم (الأساسات)</span>
+                    </Link>
+                    <Link to="/settings/control-panel" className={getNavClass('/settings/control-panel')}>
+                        <i className="fa-solid fa-gears"></i><span>الإعدادات المتقدمة</span>
                     </Link>
 
                     <div className="nav-section-label">العمليات</div>
@@ -54,6 +57,9 @@ export const ProtectedLayout = () => {
                     <Link to="/shipments" className={getNavClass('/shipments')}>
                         <i className="fa-solid fa-truck"></i><span>الإرساليات والمزارعين</span>
                     </Link>
+                    <Link to="/reports/invoices" className={getNavClass('/reports/invoices')}>
+                        <i className="fa-solid fa-receipt"></i><span>الطلبات السابقة (الفواتير)</span>
+                    </Link>
 
                     <div className="nav-section-label">المحاسبة والعملاء</div>
                     <Link to="/suppliers" className={getNavClass('/suppliers')}>
@@ -64,6 +70,9 @@ export const ProtectedLayout = () => {
                     </Link>
                     <Link to="/finance/cash" className={getNavClass('/finance')}>
                         <i className="fa-solid fa-file-invoice-dollar"></i><span>السندات والمالية</span>
+                    </Link>
+                    <Link to="/reports/receivables" className={getNavClass('/reports/receivables')}>
+                        <i className="fa-solid fa-wallet"></i><span>دفتر الذمم (الأرصدة)</span>
                     </Link>
 
                     <div className="nav-section-label">المخزون والجرد</div>

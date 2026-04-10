@@ -27,10 +27,14 @@ const supplierApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Suppliers'],
     }),
+    getCommissionTypes: build.query({
+      query: () => 'commission-types/',
+      providesTags: ['CommissionTypes'],
+    }),
   }),
 });
 
-export const { useGetSuppliersQuery, useCreateSupplierMutation, useUpdateSupplierMutation } = supplierApi;
+export const { useGetSuppliersQuery, useCreateSupplierMutation, useUpdateSupplierMutation, useGetCommissionTypesQuery } = supplierApi;
 
 const SuppliersList = () => {
   const navigate = useNavigate();
@@ -41,8 +45,11 @@ const SuppliersList = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { data: commissionTypesData } = useGetCommissionTypesQuery({});
+  const commissionTypes = commissionTypesData?.results || (Array.isArray(commissionTypesData) ? commissionTypesData : []);
+
   const [formData, setFormData] = useState({
-    name: '', phone: '', deal_type: 'commission', commission_type: 'percent', commission_rate: 5
+    name: '', phone: '', deal_type: 'commission', commission_type: '', commission_rate: 0
   });
 
   const suppliers = suppliersData?.results || (Array.isArray(suppliersData) ? suppliersData : []);
@@ -83,8 +90,8 @@ const SuppliersList = () => {
       name: s.name,
       phone: s.phone || '',
       deal_type: s.deal_type,
-      commission_type: s.commission_type || 'percent',
-      commission_rate: s.commission_rate || 5
+      commission_type: s.commission_type || '',
+      commission_rate: s.commission_rate || 0
     });
     setIsModalOpen(true);
   };
@@ -238,6 +245,24 @@ const SuppliersList = () => {
                     <option value="direct_purchase">شراء مباشر</option>
                   </select>
                 </div>
+                {formData.deal_type === 'commission' && (
+                  <div>
+                    <label className="block text-xs font-black text-zinc-400 mb-2 uppercase">نوع ونسبة العمولة (للمزارع)</label>
+                    <div className="flex gap-2">
+                      <select value={formData.commission_type} onChange={e => {
+                          const ct = commissionTypes.find((x:any) => x.id == e.target.value);
+                          setFormData({...formData, commission_type: e.target.value, commission_rate: ct ? ct.default_rate : 0});
+                        }} 
+                        className="flex-1 bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 h-14 font-bold outline-none focus:border-emerald-600">
+                        <option value="">بدون عمولة / مخصص</option>
+                        {commissionTypes.map((ct: any) => <option key={ct.id} value={ct.id}>{ct.name}</option>)}
+                      </select>
+                      {!formData.commission_type && (
+                         <input type="number" step="0.01" placeholder="نسبة" value={formData.commission_rate} onChange={e => setFormData({...formData, commission_rate: parseFloat(e.target.value)})} className="w-1/3 bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-3 h-14 font-bold focus:border-emerald-600 outline-none transition-all text-center" />
+                      )}
+                    </div>
+                  </div>
+                )}
               </form>
             </div>
             <div className="p-8 border-t border-zinc-100 flex gap-4 bg-zinc-50/20">

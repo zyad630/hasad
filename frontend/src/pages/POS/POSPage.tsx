@@ -90,9 +90,9 @@ export default function POSPage() {
     net_weight: '',
     price: '',
     price_on: 'net',
-    commission_rate: selectedCustomer?.commission_rate != null ? String(selectedCustomer.commission_rate) : '0',
-    commission_basis: selectedCustomer?.commission_type_detail?.calc_basis || 'AMOUNT',
-    commission_calc_type: selectedCustomer?.commission_type_detail?.calc_type || 'percent',
+    commission_rate: selectedCustomer?.effective_commission_rate ? String(selectedCustomer.effective_commission_rate.rate) : '0',
+    commission_basis: 'AMOUNT',
+    commission_calc_type: selectedCustomer?.effective_commission_rate?.calc_type || 'percent',
     discount: '0',
     has_empties: false,
     empties_count: '',
@@ -235,15 +235,13 @@ export default function POSPage() {
      setSelectedCustomer(cust);
      if (!cust) return;
 
-     const basis = cust.commission_type_detail?.calc_basis || 'AMOUNT';
-     const type = cust.commission_type_detail?.calc_type || 'percent';
-     const rateVal = cust.commission_rate != null ? cust.commission_rate : cust.commission_type_detail?.default_rate;
-     const normalizedRate = (rateVal == null ? 0 : rateVal);
+     const type = cust.effective_commission_rate?.calc_type || 'percent';
+     const normalizedRate = cust.effective_commission_rate ? cust.effective_commission_rate.rate : 0;
 
      const newCart = cart.map((c) => ({
         ...c,
         commission_rate: String(normalizedRate),
-        commission_basis: basis,
+        commission_basis: 'AMOUNT',
         commission_calc_type: type,
      }));
      setCart(newCart);

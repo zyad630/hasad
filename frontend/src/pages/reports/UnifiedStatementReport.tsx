@@ -25,7 +25,7 @@ export default function UnifiedStatementReport() {
   const [targetId, setTargetId] = useState('');
 
   const { data: targets, isLoading: loadingTargets } = useGetStatementTargetsQuery(targetType);
-  const { data: report, isLoading, isFetching } = useGetUnifiedStatementQuery(
+  const { data: report, isLoading, isFetching, isError, error, refetch } = useGetUnifiedStatementQuery(
      { type: targetType, id: targetId }, 
      { skip: !targetId }
   );
@@ -128,6 +128,20 @@ export default function UnifiedStatementReport() {
       {/* Report Table */}
       {targetId && isLoading || isFetching ? (
          <TableSkeleton titleWidth="200px" rows={10} columns={7} />
+      ) : targetId && isError ? (
+         <div className="bg-rose-50 p-8 rounded-3xl text-center border border-rose-100">
+            <span className="material-symbols-outlined text-6xl text-rose-200 mb-4">error</span>
+            <h3 className="text-xl font-black text-rose-700">تعذر تحميل كشف الحساب</h3>
+            <p className="text-sm font-bold text-rose-600 mt-2">
+              {(error as any)?.data?.detail || (error as any)?.data?.error || (error as any)?.error || 'حدث خطأ أثناء الاتصال بالخادم.'}
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="mt-5 bg-white border-2 border-rose-100 px-6 py-3 rounded-2xl font-black text-sm hover:bg-rose-50 transition-all"
+            >
+              إعادة المحاولة
+            </button>
+         </div>
       ) : targetId && statement.length > 0 ? (
          <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-zinc-100">
            {/* Report Info Head */}

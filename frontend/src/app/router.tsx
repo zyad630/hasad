@@ -23,6 +23,9 @@ import OrdersList from '../pages/orders/OrdersList';
 import ReturnsList from '../pages/returns/ReturnsList';
 import AccountStatement from '../pages/finance/AccountStatement';
 import ChartOfAccounts from '../pages/finance/ChartOfAccounts';
+import ReceivablesPage from '../pages/finance/ReceivablesPage';
+import SalesInvoicesPage from '../pages/finance/SalesInvoicesPage';
+import ControlPanel from '../pages/settings/ControlPanel';
 
 
 export const router = createBrowserRouter([
@@ -121,6 +124,18 @@ export const router = createBrowserRouter([
       {
         path: 'finance/chart-of-accounts',
         element: <ChartOfAccounts />,
+      },
+      {
+        path: 'reports/receivables',
+        element: <ReceivablesPage />,
+      },
+      {
+        path: 'reports/invoices',
+        element: <SalesInvoicesPage />,
+      },
+      {
+        path: 'settings/control-panel',
+        element: <ControlPanel />,
       },
       {
         path: 'super-admin',

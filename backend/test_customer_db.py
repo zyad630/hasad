@@ -1,14 +1,11 @@
-
-import os
-import django
 import uuid
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'hisba_backend.settings')
-django.setup()
+import pytest
 
 from suppliers.models import Customer, CustomerType
 from core.models import Tenant
 
+@pytest.mark.django_db
 def test_add_customer():
     tenant = Tenant.objects.first()
     if not tenant:

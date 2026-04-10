@@ -174,7 +174,7 @@ class CashTransaction(models.Model):
         verbose_name_plural = 'حركات الخزينة'
 
     def __str__(self):
-        return f"{self.tx_type} {self.amount} {'(شيك)' if self.is_check else ''}"
+        return f"{self.tx_type} {self.foreign_amount} {self.currency_code} {'(شيك)' if self.is_check else ''}"
 
 from django.db.models import Sum, Q
 from decimal import Decimal, ROUND_HALF_UP

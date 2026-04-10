@@ -23,6 +23,8 @@ class SettlementService:
         from sales.models import SaleItem
         from inventory.models import ShipmentItem
 
+        ct = self.supplier.commission_type
+
         # ── Commission via POS specific rates (Module 1 fix - Integrated) ──
         # Sum commission amounts for each sale item
         sale_items = SaleItem.objects.filter(
@@ -43,7 +45,6 @@ class SettlementService:
                 commission += (si.subtotal * (si.commission_rate / Decimal('100')))
             else:
                 # Fallback to supplier default
-                ct = self.supplier.commission_type
                 if ct:
                     if ct.calc_type == 'percent':
                         commission += (si.subtotal * (ct.default_rate / Decimal('100')))

@@ -38,8 +38,8 @@ export default function AccountStatement() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const { data: suppliersRaw } = useGetSuppliersQuery('');
-  const { data: customersRaw } = useGetCustomersQuery('');
+  const { data: suppliersRaw, isError: sListErr, error: sListError, refetch: refetchSuppliers } = useGetSuppliersQuery('');
+  const { data: customersRaw, isError: cListErr, error: cListError, refetch: refetchCustomers } = useGetCustomersQuery('');
 
   const suppliers = suppliersRaw?.results || (Array.isArray(suppliersRaw) ? suppliersRaw : []);
   const customers = customersRaw?.results || (Array.isArray(customersRaw) ? customersRaw : []);
@@ -56,6 +56,13 @@ export default function AccountStatement() {
   const stmt = partyType === 'supplier' ? supplierStmt : customerStmt;
   const isFetching = sfetching || cfetching;
   const entries = stmt?.entries || [];
+
+  const listError = partyType === 'supplier' ? sListError : cListError;
+  const hasListError = partyType === 'supplier' ? sListErr : cListErr;
+  const retryList = () => {
+    if (partyType === 'supplier') refetchSuppliers();
+    else refetchCustomers();
+  };
 
   const handleWhatsApp = () => {
     if (!selectedParty || !stmt) return;
@@ -117,6 +124,14 @@ export default function AccountStatement() {
       </div>
 
       {/* ── Search & Filters ───────────────────────────────────────────── */}
+      {hasListError && (
+        <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', color: '#9f1239', padding: '14px 16px', borderRadius: '14px', fontWeight: 800, marginBottom: '16px' }}>
+          {(listError as any)?.data?.detail || (listError as any)?.data?.error || (listError as any)?.error || 'فشل تحميل قائمة الأطراف.'}
+          <button onClick={retryList} style={{ marginRight: '10px', background: 'white', border: '1px solid #fecdd3', borderRadius: '10px', padding: '6px 10px', fontWeight: 800, cursor: 'pointer' }}>
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '220px', maxWidth: '320px' }}>
           <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#6b7280', marginBottom: '5px' }}>

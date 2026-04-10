@@ -36,7 +36,7 @@ const customBaseQuery = async (args: any, api: any, extraOptions: any) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: customBaseQuery,
-  tagTypes: ['Shipments', 'Suppliers', 'Customers', 'Containers', 'Expenses', 'Sales', 'Settlements', 'Cash', 'Items', 'Tenants', 'SuperAdmin', 'Currencies', 'Movements'],
+  tagTypes: ['Shipments', 'Suppliers', 'Customers', 'Containers', 'Expenses', 'Sales', 'Settlements', 'Cash', 'Items', 'Tenants', 'SuperAdmin', 'Currencies', 'Movements', 'AccountGroups', 'ExchangeRates'],
   endpoints: (build) => ({
     sendWhatsAppAlert: build.mutation({
       query: (body) => ({

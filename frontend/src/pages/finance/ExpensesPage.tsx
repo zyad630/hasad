@@ -42,7 +42,8 @@ export default function ExpensesPage() {
     currency_code: 'ILS',
     description: '',
     expense_date: new Date().toISOString().split('T')[0],
-    shipment: ''
+    shipment: '',
+    expense_type: 'misc'
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,7 +61,7 @@ export default function ExpensesPage() {
         shipment: formData.shipment || null,
       }).unwrap();
       setIsModalOpen(false);
-      setFormData({ foreign_amount: '', exchange_rate: '1', currency_code: 'ILS', description: '', expense_date: new Date().toISOString().split('T')[0], shipment: '' });
+      setFormData({ foreign_amount: '', exchange_rate: '1', currency_code: 'ILS', description: '', expense_date: new Date().toISOString().split('T')[0], shipment: '', expense_type: 'misc' });
       showToast('تم التسجيل بنجاح', 'success');
     } catch (err: any) {
       showToast(err?.data ? JSON.stringify(err.data) : 'حدث خطأ في العملية', 'error');

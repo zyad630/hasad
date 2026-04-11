@@ -26,6 +26,8 @@ import ChartOfAccounts from '../pages/finance/ChartOfAccounts';
 import ReceivablesPage from '../pages/finance/ReceivablesPage';
 import SalesInvoicesPage from '../pages/finance/SalesInvoicesPage';
 import ControlPanel from '../pages/settings/ControlPanel';
+import PartnersPage from '../pages/finance/PartnersPage';
+import AuditLogPage from '../pages/reports/AuditLog';
 
 
 export const router = createBrowserRouter([
@@ -136,6 +138,14 @@ export const router = createBrowserRouter([
       {
         path: 'settings/control-panel',
         element: <ControlPanel />,
+      },
+      {
+        path: 'reports/audit',
+        element: <AuditLogPage />,
+      },
+      {
+        path: 'partners',
+        element: <PartnersPage />,
       },
       {
         path: 'super-admin',

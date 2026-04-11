@@ -67,7 +67,10 @@ export const ProtectedLayout = () => {
                         <i className="fa-solid fa-truck"></i><span>الإرساليات والمزارعين</span>
                     </Link>
                     <Link to="/reports/invoices" className={getNavClass('/reports/invoices')}>
-                        <i className="fa-solid fa-receipt"></i><span>الطلبات السابقة (الفواتير)</span>
+                        <i className="fa-solid fa-file-invoice"></i><span>سجل الفواتير</span>
+                    </Link>
+                    <Link to="/reports/audit" className={getNavClass('/reports/audit')}>
+                        <i className="fa-solid fa-shield-halved"></i><span>سجل العمليات والرقابة</span>
                     </Link>
 
                     <div 
@@ -87,24 +90,18 @@ export const ProtectedLayout = () => {
                                 <i className="fa-solid fa-user-tag" style={{ fontSize: '11px' }}></i><span>حساب زبون</span>
                             </Link>
                             <Link to="/suppliers?add=1" className={getNavClass('/suppliers?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
-                                <i className="fa-solid fa-tractor" style={{ fontSize: '11px' }}></i><span>حساب مزارع / مورد</span>
+                                <i className="fa-solid fa-tractor" style={{ fontSize: '11px' }}></i><span>إضافة مورد جديد</span>
                             </Link>
                             <Link to="/hr/payroll?add=1" className={getNavClass('/hr/payroll?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
-                                <i className="fa-solid fa-id-badge" style={{ fontSize: '11px' }}></i><span>حساب موظف</span>
+                                <i className="fa-solid fa-id-badge" style={{ fontSize: '11px' }}></i><span>إضافة موظف جديد</span>
                             </Link>
-                            <Link to="/reports/receivables?party=partners" className={getNavClass('/reports/receivables?party=partners')} style={{ padding: '8px 12px', fontSize: '12px' }}>
+                            <Link to="/partners" className={getNavClass('/partners')} style={{ padding: '8px 12px', fontSize: '12px' }}>
                                 <i className="fa-solid fa-handshake" style={{ fontSize: '11px' }}></i><span>حساب مساهم / شريك</span>
                             </Link>
                         </div>
                     )}
 
-                    <div className="nav-section-label">المحاسبة والعملاء</div>
-                    <Link to="/suppliers" className={getNavClass('/suppliers')}>
-                        <i className="fa-solid fa-users"></i><span>العملاء والمزارعين</span>
-                    </Link>
-                    <Link to="/customers" className={getNavClass('/customers')}>
-                        <i className="fa-solid fa-user-tag"></i><span>تجار وزبائن</span>
-                    </Link>
+                    <div className="nav-section-label">المحاسبة</div>
                     <Link to="/finance/cash" className={getNavClass('/finance')}>
                         <i className="fa-solid fa-file-invoice-dollar"></i><span>السندات والمالية</span>
                     </Link>
@@ -176,10 +173,23 @@ export const ProtectedLayout = () => {
                         </button>
                         <div className="search-bar" id="global-search-wrap">
                             <i className="fa-solid fa-search"></i>
-                            <input type="text" id="global-search" placeholder="بحث سريع..." />
+                            <input 
+                                type="text" 
+                                id="global-search" 
+                                placeholder="بحث سريع للزبائن والمزارعين..." 
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const query = (e.target as HTMLInputElement).value;
+                                        if (query) {
+                                            // Handle global search: search for party and navigate to statement
+                                            window.location.href = `/accounting/statement?q=${encodeURIComponent(query)}`;
+                                        }
+                                    }
+                                }}
+                            />
                         </div>
                         <span className="today-date" id="today-date">
-                            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            {new Date().toLocaleDateString('en-US')}
                         </span>
                     </div>
                     <div className="header-right">

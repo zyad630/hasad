@@ -168,3 +168,11 @@ class CurrencyExchangeRateViewSet(viewsets.ModelViewSet):
                         new_rate=new_rate, foreign_balance=fbal, ref_id=str(instance.id),
                         user=self.request.user
                     )
+
+from .models import AuditLog
+from .serializers import AuditLogSerializer
+
+class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = AuditLogSerializer
+    def get_queryset(self):
+        return AuditLog.objects.filter(tenant=self.request.tenant).order_by('-created_at')

@@ -5,7 +5,8 @@ from rest_framework.routers import DefaultRouter
 # Core
 from core.views import (
     LoginView, MeView, ChangePasswordView, TenantViewSet, 
-    RegisterTenantView, UserViewSet, CurrencyViewSet, CurrencyExchangeRateViewSet
+    RegisterTenantView, UserViewSet, CurrencyViewSet, CurrencyExchangeRateViewSet,
+    AuditLogViewSet
 )
 from core import api_superadmin
 # Suppliers
@@ -17,7 +18,7 @@ from sales.views import SaleViewSet, ContainerTransactionViewSet
 # Finance
 from finance.views import (
     SettlementViewSet, ExpenseViewSet, CashTransactionViewSet,
-    AccountGroupViewSet, AccountViewSet
+    AccountGroupViewSet, AccountViewSet, PartnerViewSet
 )
 # Market
 from market.views import DailyMovementViewSet
@@ -37,6 +38,7 @@ router.register(r'users', UserViewSet, basename='user')
 router.register(r'tenants', TenantViewSet, basename='tenant')
 router.register(r'currencies', CurrencyViewSet, basename='currency')
 router.register(r'exchange-rates', CurrencyExchangeRateViewSet, basename='exchange_rate')
+router.register(r'audit-logs', AuditLogViewSet, basename='audit_log')
 # Module 1
 router.register(r'commission-types', CommissionTypeViewSet, basename='commission_type')
 # Suppliers & Customers
@@ -64,6 +66,7 @@ router.register(r'expenses', ExpenseViewSet, basename='expense')
 router.register(r'cash-transactions', CashTransactionViewSet, basename='cash_transaction')
 router.register(r'account-groups', AccountGroupViewSet, basename='account_group')
 router.register(r'accounts', AccountViewSet, basename='account')
+router.register(r'partners', PartnerViewSet, basename='partner')
 # Module 6 — HR & Payroll
 router.register(r'employees', EmployeeViewSet, basename='employee')
 router.register(r'payroll-runs', PayrollRunViewSet, basename='payroll_run')

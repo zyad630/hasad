@@ -3,7 +3,22 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../api/baseApi';
 import { VegetableLoader } from '../../components/ui/VegetableLoader';
 import { useGetCurrenciesQuery, useGetExchangeRatesQuery } from '../settings/Currencies';
+import { useGetSuppliersQuery } from '../suppliers/Suppliers';
+import { useGetCustomersQuery } from '../suppliers/Customers';
+import { api as baseApi } from '../../api/baseApi';
 import { SYSTEM_BANKS } from '../../utils/systemBanks';
+import SmartSearch from '../../components/ui/SmartSearch';
+
+const hrApi = baseApi.injectEndpoints({
+  endpoints: (build) => ({
+    getEmployees: build.query({
+      query: () => 'employees/',
+      providesTags: ['Employees'],
+    }),
+  }),
+});
+
+export const { useGetEmployeesQuery } = hrApi;
 
 const cashApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -27,10 +42,20 @@ const cashApi = api.injectEndpoints({
       query: () => 'finance/cash/uncleared-checks/',
       providesTags: ['Cash'],
     }),
+    getAccounts: build.query({
+      query: () => 'accounts/',
+      providesTags: ['Accounts'],
+    }),
   }),
 });
 
-export const { useGetCashBalanceQuery, useGetCashTransactionsQuery, useCreateVoucherMutation, useGetUnclearedChecksQuery } = cashApi;
+export const { 
+  useGetCashBalanceQuery, 
+  useGetCashTransactionsQuery, 
+  useCreateVoucherMutation, 
+  useGetUnclearedChecksQuery,
+  useGetAccountsQuery
+} = cashApi;
 
 interface VoucherEntry {
   type: 'cash' | 'check';
@@ -53,6 +78,10 @@ export default function CashPage() {
   const { data: currencies } = useGetCurrenciesQuery({});
   const { data: exchangeRates } = useGetExchangeRatesQuery({});
   const { data: unclearedChecksData } = useGetUnclearedChecksQuery({});
+  const { data: suppliersData } = useGetSuppliersQuery({});
+  const { data: customersData } = useGetCustomersQuery({});
+  const { data: employeesData } = useGetEmployeesQuery({});
+  const { data: accountsData } = useGetAccountsQuery({});
   const [createVoucher] = useCreateVoucherMutation();
 
   const unclearedChecks = unclearedChecksData?.checks || [];
@@ -155,7 +184,6 @@ export default function CashPage() {
 
       const entry = entries[index];
       
-      // Request A logic: auto-load account if account_id is entered
       if (fieldName === 'account_id') {
          if (entry.account_id?.startsWith('112')) {
             updateEntry(index, 'type', 'check');
@@ -166,25 +194,46 @@ export default function CashPage() {
          } else if (entry.account_id && entry.account_id.length > 2) {
             updateEntry(index, 'account_name', 'حساب ' + entry.account_id);
          }
+         const targetId = txType === 'in' ? `entry-${index}-debit` : `entry-${index}-credit`;
+         document.getElementById(targetId)?.focus();
+         return;
       }
 
-      // Request A: Payment voucher, checking amounts
-      if (fieldName === 'amount' && txType === 'out' && entry.type === 'check') {
-         const amt = parseFloat(entry.debit) || parseFloat(entry.credit) || 0;
-         if (amt > 0) {
-            setActiveCheckTargetAmount(amt);
-            setActiveEntryIndex(index);
-            setSelectedChecksIds([]);
-            setIsCheckModalOpen(true);
-            return;
-         }
+      if (fieldName === 'account_name') {
+         const targetId = txType === 'in' ? `entry-${index}-debit` : `entry-${index}-credit`;
+         document.getElementById(targetId)?.focus();
+         return;
       }
 
-      // Request A: Adding new row when hitting enter on last field (bank_name)
-      if (fieldName === 'bank_name' || (fieldName === 'amount' && entry.type === 'cash')) {
-         if (index === entries.length - 1) {
-            addEntry(entry.type);
+      if (fieldName === 'amount') {
+         if (txType === 'out' && entry.type === 'check') {
+            const amt = parseFloat(entry.debit) || parseFloat(entry.credit) || 0;
+            if (amt > 0) {
+               setActiveCheckTargetAmount(amt);
+               setActiveEntryIndex(index);
+               setSelectedChecksIds([]);
+               setIsCheckModalOpen(true);
+               return;
+            }
          }
+         if (entry.type === 'check') {
+            document.getElementById(`entry-${index}-check_number`)?.focus();
+         } else {
+             if (index === entries.length - 1) addEntry(entry.type);
+             setTimeout(() => document.getElementById(`entry-${index+1}-account_id`)?.focus(), 50);
+         }
+         return;
+      }
+
+      if (fieldName === 'check_number') {
+          document.getElementById(`entry-${index}-due_date`)?.focus();
+      } else if (fieldName === 'due_date') {
+          document.getElementById(`entry-${index}-bank_code`)?.focus();
+      } else if (fieldName === 'bank_code') {
+          document.getElementById(`entry-${index}-bank_name`)?.focus();
+      } else if (fieldName === 'bank_name') {
+         if (index === entries.length - 1) addEntry(entry.type);
+         setTimeout(() => document.getElementById(`entry-${index+1}-account_id`)?.focus(), 50);
       }
     }
   };
@@ -341,15 +390,30 @@ export default function CashPage() {
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">مقبوض من / دفع لـ</label>
-                     <input value={receivedFrom} onChange={(e)=>setReceivedFrom(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none focus:border-emerald-500 font-bold" autoFocus />
+                     <SmartSearch 
+                        placeholder="ابحث عن مزارع، زبون، أو موظف..."
+                        value={receivedFrom}
+                        onSearch={(q) => {
+                            const s = suppliersData?.results || suppliersData || [];
+                            const c = customersData?.results || customersData || [];
+                            const e = employeesData?.results || employeesData || [];
+                            return [...s, ...c, ...e];
+                        }}
+                        onSelect={(p) => {
+                            setReceivedFrom(p.name);
+                            setTimeout(() => document.getElementById('header-doc-date')?.focus(), 50);
+                        }}
+                        getLabel={(p) => p.name}
+                        onEnterEmpty={() => document.getElementById('header-doc-date')?.focus()}
+                     />
                   </div>
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">تاريخ المستند</label>
-                     <input type="date" value={docDate} onChange={(e)=>setDocDate(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-code" />
+                     <input id="header-doc-date" onKeyDown={e => e.key === 'Enter' && document.getElementById('header-currency')?.focus()} type="date" value={docDate} onChange={(e)=>setDocDate(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-code" />
                   </div>
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">العملة</label>
-                     <select value={currencyCode} onChange={handleCurrencySelect} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold">
+                     <select id="header-currency" onKeyDown={e => e.key === 'Enter' && document.getElementById('header-description')?.focus()} value={currencyCode} onChange={handleCurrencySelect} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold">
                         <option value="ILS">شيكل إسرائيلي (ILS)</option>
                         <option value="USD">دولار أمريكي (USD)</option>
                         <option value="JOD">دينار أردني (JOD)</option>
@@ -357,7 +421,7 @@ export default function CashPage() {
                   </div>
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">البيان (تفاصيل)</label>
-                     <input value={description} onChange={(e)=>setDescription(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold" />
+                     <input id="header-description" onKeyDown={e => e.key === 'Enter' && document.getElementById('entry-0-account_id')?.focus()} value={description} onChange={(e)=>setDescription(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold" />
                   </div>
                 </div>
 
@@ -386,6 +450,7 @@ export default function CashPage() {
                               </td>
                               <td className="p-1 border-l">
                                 <input 
+                                   id={`entry-${idx}-account_id`}
                                    value={en.account_id || ''} 
                                    onChange={(e) => {
                                       const val = e.target.value;
@@ -409,22 +474,70 @@ export default function CashPage() {
                                 />
                               </td>
                               <td className="p-1 border-l">
-                                <input value={en.account_name || ''} onChange={(e)=>updateEntry(idx, 'account_name', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'account_name')} className="w-full bg-transparent p-2 outline-none font-bold text-sm" placeholder="ابحث عن الحساب" />
+                                <SmartSearch 
+                                   id={`entry-${idx}-account_name`}
+                                   value={en.account_name || ''}
+                                   placeholder="ابحث عن الحساب..."
+                                   onSearch={(q) => {
+                                       const accs = accountsData?.results || accountsData || [];
+                                       return accs;
+                                   }}
+                                   onSelect={(acc) => {
+                                       updateEntry(idx, 'account_id', acc.code);
+                                       updateEntry(idx, 'account_name', acc.name);
+                                       const targetId = txType === 'in' ? `entry-${idx}-debit` : `entry-${idx}-credit`;
+                                       setTimeout(() => document.getElementById(targetId)?.focus(), 50);
+                                   }}
+                                   getLabel={(acc) => `${acc.code} - ${acc.name}`}
+                                   onEnterEmpty={() => {
+                                       const targetId = txType === 'in' ? `entry-${idx}-debit` : `entry-${idx}-credit`;
+                                       document.getElementById(targetId)?.focus();
+                                   }}
+                                />
                               </td>
-                              <td className="p-1 bg-emerald-50/20 border-l">
-                                <input value={en.credit} onChange={(e)=>updateEntry(idx, 'credit', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'amount')} className="w-full bg-transparent p-2 outline-none font-code text-left text-emerald-700 font-bold" inputMode="numeric" pattern="[0-9.]*" dir="ltr" placeholder="0.00" />
+                              <td className={`p-1 border-l ${txType === 'in' ? 'bg-zinc-100 opacity-30' : 'bg-emerald-50/20'}`}>
+                                <input 
+                                    id={`entry-${idx}-credit`}
+                                    disabled={txType === 'in'}
+                                    value={en.credit} 
+                                    onChange={(e)=>updateEntry(idx, 'credit', e.target.value)} 
+                                    onKeyDown={(e)=>handleKeyDown(e, idx, 'amount')} 
+                                    className="w-full bg-transparent p-2 outline-none font-code text-left text-emerald-700 font-bold" 
+                                    inputMode="numeric" 
+                                    pattern="[0-9.]*" 
+                                    dir="ltr" 
+                                    placeholder="0.00" 
+                                />
                               </td>
-                              <td className="p-1 bg-sky-50/20 border-l">
-                                <input value={en.debit} onChange={(e)=>updateEntry(idx, 'debit', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'amount')} className="w-full bg-transparent p-2 outline-none font-code text-left text-sky-700 font-bold" inputMode="numeric" pattern="[0-9.]*" dir="ltr" placeholder="0.00" />
-                              </td>
-                              <td className="p-1 border-l">
-                                <input value={en.check_number || ''} onFocus={() => forceCheckEntry(idx)} onChange={(e)=>updateEntry(idx, 'check_number', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'check_number')} className={`w-full bg-transparent p-2 font-code text-center outline-none ${en.type==='cash' ? 'opacity-20' : ''}`} inputMode="numeric" pattern="[0-9]*" dir="ltr" placeholder="الرقم" />
-                              </td>
-                              <td className="p-1 border-l">
-                                <input type="date" value={en.due_date || ''} onFocus={() => forceCheckEntry(idx)} onChange={(e)=>updateEntry(idx, 'due_date', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'due_date')} className={`w-full bg-transparent p-2 font-code outline-none text-xs ${en.type==='cash' ? 'opacity-20' : ''}`} />
+                              <td className={`p-1 border-l ${txType === 'out' ? 'bg-zinc-100 opacity-30' : 'bg-sky-50/20'}`}>
+                                <input 
+                                    id={`entry-${idx}-debit`}
+                                    disabled={txType === 'out'}
+                                    value={en.debit} 
+                                    onChange={(e)=>updateEntry(idx, 'debit', e.target.value)} 
+                                    onKeyDown={(e)=>handleKeyDown(e, idx, 'amount')} 
+                                    className="w-full bg-transparent p-2 outline-none font-code text-left text-sky-700 font-bold" 
+                                    inputMode="numeric" 
+                                    pattern="[0-9.]*" 
+                                    dir="ltr" 
+                                    placeholder="0.00" 
+                                />
                               </td>
                               <td className="p-1 border-l">
                                 <input 
+                                    id={`entry-${idx}-check_number`}
+                                    value={en.check_number || ''} 
+                                    onFocus={() => forceCheckEntry(idx)} 
+                                    onChange={(e)=>updateEntry(idx, 'check_number', e.target.value)} 
+                                    onKeyDown={(e)=>handleKeyDown(e, idx, 'check_number')} className={`w-full bg-transparent p-2 font-code text-center outline-none ${en.type==='cash' ? 'opacity-20' : ''}`} inputMode="numeric" pattern="[0-9]*" dir="ltr" placeholder="الرقم" 
+                                />
+                              </td>
+                              <td className="p-1 border-l">
+                                <input id={`entry-${idx}-due_date`} type="date" value={en.due_date || ''} onFocus={() => forceCheckEntry(idx)} onChange={(e)=>updateEntry(idx, 'due_date', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'due_date')} className={`w-full bg-transparent p-2 font-code outline-none text-xs ${en.type==='cash' ? 'opacity-20' : ''}`} />
+                              </td>
+                              <td className="p-1 border-l">
+                                <input 
+                                   id={`entry-${idx}-bank_code`}
                                    value={en.bank_code || ''} 
                                    onFocus={() => forceCheckEntry(idx)}
                                    onChange={(e)=> {
@@ -449,7 +562,7 @@ export default function CashPage() {
                                 />
                               </td>
                               <td className="p-1">
-                                <input value={en.bank_name || ''} onFocus={() => forceCheckEntry(idx)} onChange={(e)=>updateEntry(idx, 'bank_name', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'bank_name')} className={`w-full bg-transparent p-2 outline-none font-bold ${en.type==='cash' ? 'opacity-20' : ''}`} placeholder="اسم البنك" />
+                                <input id={`entry-${idx}-bank_name`} value={en.bank_name || ''} onFocus={() => forceCheckEntry(idx)} onChange={(e)=>updateEntry(idx, 'bank_name', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'bank_name')} className={`w-full bg-transparent p-2 outline-none font-bold ${en.type==='cash' ? 'opacity-20' : ''}`} placeholder="اسم البنك" />
                               </td>
                            </tr>
                          ))}
@@ -562,26 +675,23 @@ export default function CashPage() {
                  </div>
               </div>
 
-              <div className="flex gap-4">
-                 <button 
-                   onClick={() => {
-                      setCurrencyCode(pendingCurrency);
-                      setShowExchangeModal(false);
-                   }} 
-                   className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 cursor-pointer"
-                 >
-                   اعتماد السعر ({exchangeRate})
-                 </button>
-                 <button 
-                   onClick={() => {
-                      setPendingCurrency('ILS');
-                      setShowExchangeModal(false);
-                   }} 
-                   className="py-3 px-6 bg-white border border-zinc-200 font-bold rounded-lg text-zinc-500 hover:bg-zinc-50 cursor-pointer"
-                 >
-                   إلغاء
-                 </button>
-              </div>
+               <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                       setCurrencyCode(pendingCurrency);
+                       setShowExchangeModal(false);
+                    }} 
+                    className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 cursor-pointer"
+                  >
+                    اعتماد السعر ({exchangeRate})
+                  </button>
+                  <button 
+                    onClick={() => setShowExchangeModal(false)} 
+                    className="flex-1 py-3 bg-white border border-zinc-200 text-zinc-600 font-bold rounded-lg hover:bg-zinc-50 cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+               </div>
            </div>
         </div>
       )}

@@ -8,4 +8,5 @@ class CoreConfig(AppConfig):
     def ready(self):
         """Initialize core SaaS settings and signals when Django 6 boots up."""
         import core.managers
-        print("[+] Hisba SaaS Core: Tenant Isolation Engine Loaded.")
+        import core.signals
+        print("[+] Hisba SaaS Core: Tenant Isolation & Auditing Loaded.")

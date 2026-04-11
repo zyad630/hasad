@@ -49,3 +49,17 @@ class TenantMiddleware(MiddlewareMixin):
         # Clear thread-local if an exception occurs
         set_current_tenant(None)
         return None
+
+from .signals import set_current_user
+
+class AuditMiddleware(MiddlewareMixin):
+    def process_request(self, request):
+        if request.user.is_authenticated:
+            set_current_user(request.user)
+        else:
+            set_current_user(None)
+
+    def process_response(self, request, response):
+        set_current_user(None)
+        return response
+

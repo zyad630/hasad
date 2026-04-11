@@ -110,6 +110,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'core.middleware.TenantMiddleware',
+    'core.middleware.AuditMiddleware',
 ]
 
 ROOT_URLCONF = 'hisba_backend.urls'

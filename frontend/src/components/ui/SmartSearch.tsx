@@ -43,7 +43,7 @@ function mapEnToArabicKeyboard(str: string): string {
 }
 
 function normalizeForSearch(str: string): string {
-  let s = stripDiacritics(String(str).toLowerCase());
+  let s = stripDiacritics(String(str || '').trim().toLowerCase());
   // Normalize Alefs
   s = s.replace(/[أإآٱ]/g, 'ا');
   // Normalize Yaa
@@ -99,8 +99,7 @@ export function SmartSearch({
       const needles = getSearchNeedles(q);
       const filtered = raw.filter((item: any) => {
         const label = normalizeForSearch(getLabel(item));
-        const words = label.split(/\s+/);
-        return needles.some((n) => words.some(w => w.startsWith(n)));
+        return needles.some((n) => label.includes(n));
       });
       filtered.sort((a: any, b: any) => {
         const la = normalizeForSearch(getLabel(a));
@@ -121,7 +120,7 @@ export function SmartSearch({
         // Priority 3: Alphabetical
         return la.localeCompare(lb, 'ar');
       });
-      const sliced = filtered.slice(0, 10);
+      const sliced = filtered.slice(0, 20);
       setResults(sliced);
       setOpen(filtered.length > 0);
       setActiveIdx(-1);

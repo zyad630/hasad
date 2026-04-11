@@ -84,3 +84,17 @@ class SettleShipmentSerializer(serializers.Serializer):
             user=user,
             shipment_id=shipment.id
         )
+
+from .models import Partner
+
+class PartnerSerializer(serializers.ModelSerializer):
+    balance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Partner
+        fields = ['id', 'name', 'phone', 'share_percentage', 'initial_capital', 'is_active', 'notes', 'balance', 'created_at']
+        read_only_fields = ['id', 'created_at', 'balance']
+
+    def get_balance(self, obj):
+        from .models import LedgerEntry
+        return float(LedgerEntry.get_balance(obj.tenant, 'partner', obj.id))

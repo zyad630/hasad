@@ -173,21 +173,24 @@ export default function POSPage() {
   // Mapping catalog for SmartSearch or manual
   const catalogMap: Record<string, any> = {};
   (allItems as any[]).forEach((item: any) => {
-    catalogMap[item.name] = {
-      item_name: item.name,
+    const key = (item.name || '').trim();
+    catalogMap[key] = {
+      item_name: key,
       tare_weight: Number(item.tare_weight) || 0,
       price_on: item.price_on || 'net',
+      base_unit: item.base_unit || 'صندوق',
       shipment_items: [],
       best_price: 0,
     };
   });
   shipmentItems.forEach((si: any) => {
-    if(!catalogMap[si.item_name]) return;
-    catalogMap[si.item_name].shipment_items.push(si);
-    if (si.expected_price) catalogMap[si.item_name].best_price = Number(si.expected_price);
+    const key = (si.item_name || '').trim();
+    if(!catalogMap[key]) return;
+    catalogMap[key].shipment_items.push(si);
+    if (si.expected_price) catalogMap[key].best_price = Number(si.expected_price);
   });
   
-  const catalogList = Object.values(catalogMap).filter((c:any) => c.shipment_items.length > 0);
+  const catalogList = Object.values(catalogMap);
 
   // Totals
   const getSubtotal = (line: CartLine) => {
@@ -392,6 +395,12 @@ export default function POSPage() {
                                  id={`cart-${idx}-item_search`}
                                  onSearch={async (q) => catalogList}
                                  getLabel={(item: any) => item.item_name}
+                                 renderItem={(item: any) => (
+                                   <div style={{ display: 'flex', justifyContent: 'space-between', color: item.shipment_items.length === 0 ? '#a1a1aa' : 'inherit' }}>
+                                      <span>{item.item_name}</span>
+                                      {item.shipment_items.length === 0 && <span style={{ fontSize: '10px', fontStyle: 'italic' }}>(بدون رصيد)</span>}
+                                   </div>
+                                 )}
                                  placeholder="ابحث عن الصنف..."
                                  onSelect={(cItem: any) => {
                                     if (cItem && cItem.shipment_items.length > 0) {
@@ -403,7 +412,7 @@ export default function POSPage() {
                                           shipment_item_id: shp.id,
                                           item_name: shp.item_name,
                                           supplier_name: shp.supplier_name,
-                                          unit: shp.unit || 'صندوق',
+                                          unit: cItem.base_unit || shp.unit || 'صندوق',
                                           price: cItem.best_price ? cItem.best_price.toString() : '',
                                           tare_per_unit: cItem.tare_weight,
                                           price_on: cItem.price_on,
@@ -413,6 +422,8 @@ export default function POSPage() {
                                       setTimeout(() => {
                                         document.getElementById(`cart-${idx}-qty`)?.focus();
                                       }, 0);
+                                    } else {
+                                      showToast(`هذا الصنف (${cItem.item_name}) لا يوجد له أرصدة واردة حالياً`, 'info');
                                     }
                                   }}
                                  style={{ width: '100%' }}

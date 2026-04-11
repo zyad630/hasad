@@ -84,3 +84,12 @@ class RegisterTenantSerializer(serializers.Serializer):
     subdomain = serializers.CharField(max_length=100)
     owner_username = serializers.CharField(max_length=150)
     owner_password = serializers.CharField(write_only=True)
+
+from .models import AuditLog
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    class Meta:
+        model = AuditLog
+        fields = ['id', 'username', 'action', 'entity_type', 'entity_id', 'delta', 'created_at']
+        read_only_fields = ['id', 'created_at']

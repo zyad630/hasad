@@ -312,3 +312,22 @@ class AdvancedCheck(models.Model):
             CheckLifecycle.CANCELLED: [],  # Terminal state
         }
         return new_lifecycle in allowed.get(self.lifecycle, [])
+
+
+class Partner(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    name = models.CharField(max_length=150, verbose_name="اسم الشريك")
+    phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="رقم الهاتف")
+    share_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="نسبة الشراكة (%)")
+    initial_capital = models.DecimalField(max_digits=18, decimal_places=3, default=0, verbose_name="رأس المال المبدئي")
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True, null=True, verbose_name="ملاحظات")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'شريك'
+        verbose_name_plural = 'الشركاء والمساهمون'
+
+    def __str__(self):
+        return f"{self.name} ({self.share_percentage}%)"

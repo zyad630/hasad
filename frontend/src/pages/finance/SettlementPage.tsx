@@ -297,8 +297,8 @@ export default function SettlementPage() {
             </div>
             <div className="text-left font-code text-zinc-500">
                <div>رقم الإرسالية: <strong className="text-black text-xl">#{previewData.shipment_id.substring(0,8)}</strong></div>
-               <div>تاريخ التصفية: <strong>{new Date().toLocaleDateString('en-US')}</strong></div>
-               <div>الوقت: <strong>{new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</strong></div>
+               <div>تاريخ التصفية: <strong>{new Date().toLocaleDateString('en-GB')}</strong></div>
+               <div>الوقت: <strong>{new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'})}</strong></div>
             </div>
           </div>
           

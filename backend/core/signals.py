@@ -18,6 +18,13 @@ def get_current_user():
 # List of models we want to audit
 AUDITED_MODELS_APPS = ['inventory', 'finance', 'market', 'suppliers']
 
+import json
+from django.core.serializers.json import DjangoJSONEncoder
+
+def make_json_safe(data):
+    """Recursively convert UUIDs and non-serializable objects to strings/serializable format"""
+    return json.loads(json.dumps(data, cls=DjangoJSONEncoder))
+
 @receiver(post_save)
 def audit_save(sender, instance, created, **kwargs):
     if sender._meta.app_label not in AUDITED_MODELS_APPS:
@@ -37,7 +44,7 @@ def audit_save(sender, instance, created, **kwargs):
         action=f"{action}_{sender._meta.model_name}",
         entity_id=str(instance.pk),
         entity_type=sender._meta.verbose_name,
-        after_data=model_to_dict(instance),
+        after_data=make_json_safe(model_to_dict(instance)),
     )
 
 @receiver(post_delete)
@@ -56,5 +63,5 @@ def audit_delete(sender, instance, **kwargs):
         action=f"delete_{sender._meta.model_name}",
         entity_id=str(instance.pk),
         entity_type=sender._meta.verbose_name,
-        before_data=model_to_dict(instance),
+        before_data=make_json_safe(model_to_dict(instance)),
     )

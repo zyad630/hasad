@@ -97,4 +97,6 @@ class PartnerSerializer(serializers.ModelSerializer):
 
     def get_balance(self, obj):
         from .models import LedgerEntry
-        return float(LedgerEntry.get_balance(obj.tenant, 'partner', obj.id))
+        # For partners, CR (Credit) indicates their equity/capital, which should be shown as safe/positive balance
+        # Since get_balance returns DR-CR, we invert it to get CR-DR
+        return -float(LedgerEntry.get_balance(obj.tenant, 'partner', obj.id))

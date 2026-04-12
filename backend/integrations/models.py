@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.core.serializers.json import DjangoJSONEncoder
 from core.models import Tenant
 
 class MessageType(models.TextChoices):
@@ -41,7 +42,7 @@ class AIAlert(models.Model):
     alert_type = models.CharField(max_length=20, choices=AlertType.choices)
     severity = models.CharField(max_length=10, choices=AlertSeverity.choices, default=AlertSeverity.LOW)
     title = models.CharField(max_length=300)
-    details = models.JSONField(default=dict, blank=True)
+    details = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

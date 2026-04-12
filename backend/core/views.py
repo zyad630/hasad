@@ -59,7 +59,8 @@ class TenantViewSet(viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
 
     def get_permissions(self):
-        return [permissions.IsAdminUser()]
+        from .permissions import IsSuperAdmin
+        return [IsSuperAdmin()]
 
     def perform_create(self, serializer):
         tenant = serializer.save(
@@ -71,7 +72,8 @@ class TenantViewSet(viewsets.ModelViewSet):
 
 class RegisterTenantView(APIView):
     """Super Admin creates new tenant + owner user."""
-    permission_classes = [permissions.IsAdminUser]
+    from .permissions import IsSuperAdmin
+    permission_classes = [IsSuperAdmin]
 
     def post(self, request):
         serializer = RegisterTenantSerializer(data=request.data)
@@ -110,6 +112,20 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(tenant=self.request.tenant)
+
+class SuperAdminUserViewSet(viewsets.ReadOnlyModelViewSet):
+    """View used by Super Admin to monitor users across a specific tenant."""
+    from .permissions import IsSuperAdmin
+    permission_classes = [IsSuperAdmin]
+    serializer_class = CustomUserSerializer
+    
+    def get_queryset(self):
+        # We use all_objects to bypass the TenantManager filter in the model
+        tenant_id = self.request.query_params.get('tenant_id')
+        if not tenant_id:
+            return CustomUser.all_objects.all()
+        return CustomUser.all_objects.filter(tenant_id=tenant_id)
+
 
 
 from .models import Currency, CurrencyExchangeRate

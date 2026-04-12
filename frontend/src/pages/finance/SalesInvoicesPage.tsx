@@ -142,9 +142,9 @@ export default function SalesInvoicesPage() {
               <tr key={inv.id} style={{ borderBottom: '1px solid #f4f4f5', background: inv.is_cancelled ? '#fff8f8' : i % 2 === 0 ? 'white' : '#fafafa', opacity: inv.is_cancelled ? 0.7 : 1 }}>
                 <td style={{ padding: '12px', color: '#a1a1aa', fontWeight: 700 }}>{i + 1}</td>
                 <td style={{ padding: '12px', fontWeight: 700 }}>
-                  {new Date(inv.sale_date).toLocaleDateString('en-US')}
+                  {new Date(inv.sale_date).toLocaleDateString('en-GB')}
                   <div style={{ fontSize: '11px', color: '#a1a1aa' }}>
-                    {new Date(inv.sale_date).toLocaleTimeString('en-US')}
+                    {new Date(inv.sale_date).toLocaleTimeString('en-GB')}
                   </div>
                 </td>
                 <td style={{ padding: '12px', fontWeight: 900 }}>{inv.customer_name || '— نقدي'}</td>

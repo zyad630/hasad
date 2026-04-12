@@ -8,6 +8,7 @@ import { useGetCustomersQuery } from '../suppliers/Customers';
 import { api as baseApi } from '../../api/baseApi';
 import { SYSTEM_BANKS } from '../../utils/systemBanks';
 import SmartSearch from '../../components/ui/SmartSearch';
+import { formatDateDisplay } from '../../utils/dateUtils';
 
 const hrApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -178,62 +179,107 @@ export default function CashPage() {
   };
 
   // Move to next line mechanism
+  const [isDateFocused, setIsDateFocused] = useState(false);
+  
+  // Move to next line mechanism
   const handleKeyDown = (e: React.KeyboardEvent, index: number, fieldName: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
 
       const entry = entries[index];
+      const domAccountId = (document.getElementById(`entry-${index}-account_id`) as HTMLInputElement | null)?.value || '';
+      const accountId = String(entry.account_id || domAccountId || '');
+      const isCheck = entry.type === 'check' || accountId.startsWith('112') || String(entry.account_name || '').includes('شيك');
       
+      const focusNext = (id: string) => {
+          setTimeout(() => {
+              const el = document.getElementById(id);
+              if (el) {
+                  el.focus();
+                  if (el instanceof HTMLInputElement) el.select();
+              }
+          }, 30);
+      };
+
       if (fieldName === 'account_id') {
-         if (entry.account_id?.startsWith('112')) {
-            updateEntry(index, 'type', 'check');
-            updateEntry(index, 'account_name', 'صندوق الشيكات');
-         } else if (entry.account_id === '1111') {
-            updateEntry(index, 'type', 'cash');
-            updateEntry(index, 'account_name', 'صندوق نقدي');
-         } else if (entry.account_id && entry.account_id.length > 2) {
-            updateEntry(index, 'account_name', 'حساب ' + entry.account_id);
+         if (!accountId) {
+            focusNext(`entry-${index}-account_name`);
+            return;
          }
-         const targetId = txType === 'in' ? `entry-${index}-debit` : `entry-${index}-credit`;
-         document.getElementById(targetId)?.focus();
+         if (accountId.startsWith('112') && entry.type !== 'check') {
+             updateEntry(index, 'type', 'check');
+         }
+         
+         const targetId = txType === 'in' ? `entry-${index}-credit` : `entry-${index}-debit`;
+         focusNext(targetId);
          return;
       }
 
       if (fieldName === 'account_name') {
-         const targetId = txType === 'in' ? `entry-${index}-debit` : `entry-${index}-credit`;
-         document.getElementById(targetId)?.focus();
+         const targetId = txType === 'in' ? `entry-${index}-credit` : `entry-${index}-debit`;
+         focusNext(targetId);
          return;
       }
 
       if (fieldName === 'amount') {
-         if (txType === 'out' && entry.type === 'check') {
-            const amt = parseFloat(entry.debit) || parseFloat(entry.credit) || 0;
-            if (amt > 0) {
-               setActiveCheckTargetAmount(amt);
+         const rawAmount = (e.target as HTMLInputElement | null)?.value || '';
+         const typedAmount = parseFloat(rawAmount) || 0;
+
+          if (txType === 'out' && isCheck) {
+            if (typedAmount > 0) {
+               setActiveCheckTargetAmount(typedAmount);
                setActiveEntryIndex(index);
                setSelectedChecksIds([]);
                setIsCheckModalOpen(true);
                return;
             }
-         }
-         if (entry.type === 'check') {
-            document.getElementById(`entry-${index}-check_number`)?.focus();
-         } else {
-             if (index === entries.length - 1) addEntry(entry.type);
-             setTimeout(() => document.getElementById(`entry-${index+1}-account_id`)?.focus(), 50);
-         }
+          }
+          
+          if (isCheck) {
+            forceCheckEntry(index);
+            focusNext(`entry-${index}-check_number`);
+          } else {
+             const amountVal = typedAmount;
+             const hasAccount = !!accountId;
+             if (index === entries.length - 1) {
+                if (!hasAccount || amountVal <= 0) {
+                   showToast('أكمل رقم الحساب والمبلغ قبل إضافة سطر جديد', 'warning');
+                   return;
+                }
+                addEntry('cash');
+             }
+             focusNext(`entry-${index+1}-account_id`);
+          }
          return;
       }
 
       if (fieldName === 'check_number') {
-          document.getElementById(`entry-${index}-due_date`)?.focus();
+          focusNext(`entry-${index}-due_date`);
       } else if (fieldName === 'due_date') {
-          document.getElementById(`entry-${index}-bank_code`)?.focus();
+          focusNext(`entry-${index}-bank_code`);
       } else if (fieldName === 'bank_code') {
-          document.getElementById(`entry-${index}-bank_name`)?.focus();
+          focusNext(`entry-${index}-bank_name`);
       } else if (fieldName === 'bank_name') {
-         if (index === entries.length - 1) addEntry(entry.type);
-         setTimeout(() => document.getElementById(`entry-${index+1}-account_id`)?.focus(), 50);
+         if (index === entries.length - 1) {
+            const amountVal = parseFloat(entry.debit) || parseFloat(entry.credit) || 0;
+            const hasAccount = !!accountId;
+            if (isCheck) {
+               const checkOk = !!(entry.check_number || '').trim() && !!(entry.due_date || '').trim() && !!(entry.bank_name || '').trim();
+               if (!hasAccount || amountVal <= 0 || !checkOk) {
+                  showToast('أكمل بيانات الشيك (رقم الشيك/الاستحقاق/اسم البنك) والمبلغ قبل إضافة سطر جديد', 'warning');
+                  return;
+               }
+               addEntry('check');
+            } else {
+               if (!hasAccount || amountVal <= 0) {
+                  showToast('أكمل رقم الحساب والمبلغ قبل إضافة سطر جديد', 'warning');
+                  return;
+               }
+               addEntry('cash');
+            }
+         }
+         focusNext(`entry-${index+1}-account_id`);
       }
     }
   };
@@ -369,15 +415,74 @@ export default function CashPage() {
       </div>
 
       {/* ── Transactions History ──────────────────────────────────────── */}
-      <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-zinc-100">
-         {/* History Table Implementation (Left intact for brevity, similar standard mapping) */}
-         <div className="px-8 py-6 border-b border-zinc-50"><h4 className="font-black text-xl">سجل الحركات</h4></div>
-         <div className="p-4 text-center text-zinc-400 font-bold">{transactions?.length || 0} عملية سابقة...</div>
+      <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-zinc-100 min-h-[400px]">
+         <div className="px-8 py-6 border-b border-zinc-50 flex items-center justify-between bg-zinc-50/50">
+            <h4 className="font-black text-xl flex items-center gap-2">
+               <span className="material-symbols-outlined text-zinc-400">history</span>
+               سجل الحركات الأخيرة
+            </h4>
+            <span className="px-4 py-1.5 bg-zinc-200 text-zinc-600 rounded-full text-xs font-black">
+               {transactions?.length || 0} عملية مكتشفة
+            </span>
+         </div>
+         
+         {(!transactions || transactions.length === 0) ? (
+            <div className="p-20 text-center">
+               <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-200">
+                  <span className="material-symbols-outlined text-5xl">inventory_2</span>
+               </div>
+               <p className="text-zinc-400 font-bold">لا توجد حركات مسجلة حالياً</p>
+            </div>
+         ) : (
+            <div className="overflow-x-auto">
+               <table className="w-full text-right" dir="rtl">
+                  <thead className="bg-zinc-50 text-zinc-400 text-[11px] font-black uppercase tracking-wider border-b border-zinc-100">
+                     <tr>
+                        <th className="px-8 py-4">التاريخ</th>
+                        <th className="px-4 py-4">نوع الحركة</th>
+                        <th className="px-4 py-4">البيان / الملاحظات</th>
+                        <th className="px-4 py-4 text-left">المبلغ</th>
+                        <th className="px-8 py-4 text-center">الإجراءات</th>
+                     </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-50">
+                     {transactions.map((tx: any) => (
+                        <tr key={tx.id} className="hover:bg-zinc-50/50 transition-colors group">
+                           <td className="px-8 py-5 font-code text-sm text-zinc-500 font-bold">
+                              {new Date(tx.tx_date).toLocaleDateString('en-GB')}
+                           </td>
+                           <td className="px-4 py-5">
+                              <span className={`px-3 py-1 rounded-lg text-xs font-black ${
+                                 tx.tx_type === 'in' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                              }`}>
+                                 {tx.tx_type === 'in' ? 'قبض (استلام)' : 'صرف (دفع)'}
+                              </span>
+                           </td>
+                           <td className="px-4 py-5 font-bold text-on-surface">
+                              {tx.description}
+                           </td>
+                           <td className="px-4 py-5 text-left font-code font-black text-on-surface">
+                              <span className={tx.tx_type === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
+                                 {tx.tx_type === 'in' ? '+' : '-'} {parseFloat(tx.foreign_amount).toLocaleString()}
+                              </span>
+                              <span className="mr-1 text-[10px] text-zinc-400">{tx.currency_code}</span>
+                           </td>
+                           <td className="px-8 py-5 text-center">
+                              <button className="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-400 hover:bg-emerald-500 hover:text-white transition-all">
+                                 <span className="material-symbols-outlined text-sm">print</span>
+                              </button>
+                           </td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
+         )}
       </div>
 
       {/* ── Multi-item Voucher Modal (Request 9, A) ────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[1000] bg-zinc-950/60 backdrop-blur-md flex items-center justify-center p-4">
+        <div data-enter-scope="local" className="fixed inset-0 z-[1000] bg-zinc-950/60 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white w-full max-w-6xl rounded-[2.5rem] shadow-2xl flex flex-col flex-1 max-h-[95vh] border border-zinc-100">
              
              <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
@@ -390,38 +495,99 @@ export default function CashPage() {
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">مقبوض من / دفع لـ</label>
-                     <SmartSearch 
-                        placeholder="ابحث عن مزارع، زبون، أو موظف..."
-                        value={receivedFrom}
-                        onSearch={(q) => {
-                            const s = suppliersData?.results || suppliersData || [];
-                            const c = customersData?.results || customersData || [];
-                            const e = employeesData?.results || employeesData || [];
-                            return [...s, ...c, ...e];
-                        }}
-                        onSelect={(p) => {
-                            setReceivedFrom(p.name);
-                            setTimeout(() => document.getElementById('header-doc-date')?.focus(), 50);
-                        }}
-                        getLabel={(p) => p.name}
-                        onEnterEmpty={() => document.getElementById('header-doc-date')?.focus()}
-                     />
+                         <SmartSearch 
+                            id="header-received-from"
+                            placeholder="ابحث عن مزارع، زبون، أو موظف..."
+                            value={receivedFrom}
+                            onSearch={(q) => {
+                                const s = suppliersData?.results || suppliersData || [];
+                                const c = customersData?.results || customersData || [];
+                                const e = employeesData?.results || employeesData || [];
+                                return [...s, ...c, ...e];
+                            }}
+                            onSelect={(p) => {
+                                setReceivedFrom(p.name);
+                                setTimeout(() => {
+                                   const el = document.getElementById('header-doc-date');
+                                   if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
+                                }, 150);
+                            }}
+                            getLabel={(p) => p.name}
+                            onEnterEmpty={() => {
+                                setTimeout(() => {
+                                   const el = document.getElementById('header-doc-date');
+                                   if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
+                                }, 100);
+                            }}
+                         />
                   </div>
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">تاريخ المستند</label>
-                     <input id="header-doc-date" onKeyDown={e => e.key === 'Enter' && document.getElementById('header-currency')?.focus()} type="date" value={docDate} onChange={(e)=>setDocDate(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-code" />
+                     <input 
+                        id="header-doc-date" 
+                        type={isDateFocused ? 'date' : 'text'}
+                        placeholder="DD/MM/YYYY"
+                        value={isDateFocused ? docDate : formatDateDisplay(docDate)} 
+                        onChange={(e) => setDocDate(e.target.value)}
+                        onFocus={() => setIsDateFocused(true)}
+                        onBlur={() => setIsDateFocused(false)}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTimeout(() => {
+                                   document.getElementById('header-currency')?.focus();
+                                }, 100);
+                            }
+                        }} 
+                        className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-code text-center" 
+                     />
                   </div>
-                  <div>
+                  <div className="relative">
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">العملة</label>
-                     <select id="header-currency" onKeyDown={e => e.key === 'Enter' && document.getElementById('header-description')?.focus()} value={currencyCode} onChange={handleCurrencySelect} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold">
+                     <select 
+                        id="header-currency" 
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const next = document.getElementById('header-description');
+                                if (next) {
+                                    next.focus();
+                                    if (next instanceof HTMLInputElement) next.select();
+                                }
+                            }
+                        }} 
+                        value={currencyCode} 
+                        onChange={handleCurrencySelect} 
+                        className="w-full bg-white border-2 border-zinc-200 p-3 rounded-xl outline-none font-bold focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer"
+                     >
                         <option value="ILS">شيكل إسرائيلي (ILS)</option>
                         <option value="USD">دولار أمريكي (USD)</option>
                         <option value="JOD">دينار أردني (JOD)</option>
                      </select>
+                     <div className="absolute left-3 bottom-4 pointer-events-none text-zinc-400">
+                        <span className="material-symbols-outlined text-sm">unfold_more</span>
+                     </div>
                   </div>
                   <div>
                      <label className="text-sm font-bold text-zinc-500 mb-1 block">البيان (تفاصيل)</label>
-                     <input id="header-description" onKeyDown={e => e.key === 'Enter' && document.getElementById('entry-0-account_id')?.focus()} value={description} onChange={(e)=>setDescription(e.target.value)} className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold" />
+                     <input 
+                        id="header-description" 
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setTimeout(() => {
+                                    const el = document.getElementById('entry-0-account_id');
+                                    if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
+                                }, 150);
+                            }
+                        }} 
+                        value={description} 
+                        onChange={(e)=>setDescription(e.target.value)} 
+                        className="w-full bg-white border border-zinc-200 p-3 rounded-xl outline-none font-bold" 
+                     />
                   </div>
                 </div>
 
@@ -485,38 +651,47 @@ export default function CashPage() {
                                    onSelect={(acc) => {
                                        updateEntry(idx, 'account_id', acc.code);
                                        updateEntry(idx, 'account_name', acc.name);
-                                       const targetId = txType === 'in' ? `entry-${idx}-debit` : `entry-${idx}-credit`;
-                                       setTimeout(() => document.getElementById(targetId)?.focus(), 50);
+                                       if (String(acc.code || '').startsWith('112')) {
+                                          updateEntry(idx, 'type', 'check');
+                                       } else if (String(acc.code || '') === '1111') {
+                                          updateEntry(idx, 'type', 'cash');
+                                       }
+                                       const targetId = txType === 'in' ? `entry-${idx}-credit` : `entry-${idx}-debit`;
+                                       setTimeout(() => {
+                                          const el = document.getElementById(targetId);
+                                          if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
+                                       }, 150);
                                    }}
                                    getLabel={(acc) => `${acc.code} - ${acc.name}`}
                                    onEnterEmpty={() => {
-                                       const targetId = txType === 'in' ? `entry-${idx}-debit` : `entry-${idx}-credit`;
-                                       document.getElementById(targetId)?.focus();
+                                       const targetId = txType === 'in' ? `entry-${idx}-credit` : `entry-${idx}-debit`;
+                                       const el = document.getElementById(targetId);
+                                       if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
                                    }}
                                 />
                               </td>
-                              <td className={`p-1 border-l ${txType === 'in' ? 'bg-zinc-100 opacity-30' : 'bg-emerald-50/20'}`}>
+                              <td className={`p-1 border-l ${txType === 'out' ? 'bg-zinc-100 opacity-30 cursor-not-allowed' : 'bg-emerald-50/20'}`}>
                                 <input 
                                     id={`entry-${idx}-credit`}
-                                    disabled={txType === 'in'}
+                                    disabled={txType === 'out'}
                                     value={en.credit} 
                                     onChange={(e)=>updateEntry(idx, 'credit', e.target.value)} 
                                     onKeyDown={(e)=>handleKeyDown(e, idx, 'amount')} 
-                                    className="w-full bg-transparent p-2 outline-none font-code text-left text-emerald-700 font-bold" 
+                                    className="w-full bg-transparent p-2 outline-none font-code text-left text-emerald-700 font-bold disabled:bg-transparent" 
                                     inputMode="numeric" 
                                     pattern="[0-9.]*" 
                                     dir="ltr" 
                                     placeholder="0.00" 
                                 />
                               </td>
-                              <td className={`p-1 border-l ${txType === 'out' ? 'bg-zinc-100 opacity-30' : 'bg-sky-50/20'}`}>
+                              <td className={`p-1 border-l ${txType === 'in' ? 'bg-zinc-100 opacity-30 cursor-not-allowed' : 'bg-sky-50/20'}`}>
                                 <input 
                                     id={`entry-${idx}-debit`}
-                                    disabled={txType === 'out'}
+                                    disabled={txType === 'in'}
                                     value={en.debit} 
                                     onChange={(e)=>updateEntry(idx, 'debit', e.target.value)} 
                                     onKeyDown={(e)=>handleKeyDown(e, idx, 'amount')} 
-                                    className="w-full bg-transparent p-2 outline-none font-code text-left text-sky-700 font-bold" 
+                                    className="w-full bg-transparent p-2 outline-none font-code text-left text-sky-700 font-bold disabled:bg-transparent" 
                                     inputMode="numeric" 
                                     pattern="[0-9.]*" 
                                     dir="ltr" 
@@ -575,7 +750,7 @@ export default function CashPage() {
              <div className="p-6 border-t border-zinc-100 flex justify-between items-center bg-white rounded-b-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.03)]">
                 <div>
                    <span className="text-zinc-500 font-bold mr-2">مجموع السند:</span>
-                   <span className="text-3xl font-black text-emerald-600 font-code tracking-tighter" dir="ltr">{totalAmount.toLocaleString()} {currencyCode}</span>
+                   <span className="text-3xl font-black text-emerald-600 font-code tracking-tighter" dir="ltr">{totalAmount.toLocaleString('en-GB')} {currencyCode}</span>
                 </div>
                 <div className="flex gap-4">
                   <button onClick={handleSubmit} className="px-10 py-3 bg-emerald-600 text-white rounded-xl font-bold cursor-pointer hover:bg-emerald-700 shadow-md">اعتماد وحفظ السند (Save)</button>

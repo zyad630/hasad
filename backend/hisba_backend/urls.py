@@ -6,7 +6,7 @@ from rest_framework.routers import DefaultRouter
 from core.views import (
     LoginView, MeView, ChangePasswordView, TenantViewSet, 
     RegisterTenantView, UserViewSet, CurrencyViewSet, CurrencyExchangeRateViewSet,
-    AuditLogViewSet
+    AuditLogViewSet, SuperAdminUserViewSet
 )
 from core import api_superadmin
 # Suppliers
@@ -39,6 +39,7 @@ router.register(r'tenants', TenantViewSet, basename='tenant')
 router.register(r'currencies', CurrencyViewSet, basename='currency')
 router.register(r'exchange-rates', CurrencyExchangeRateViewSet, basename='exchange_rate')
 router.register(r'audit-logs', AuditLogViewSet, basename='audit_log')
+router.register(r'superadmin/users', SuperAdminUserViewSet, basename='superadmin_user')
 # Module 1
 router.register(r'commission-types', CommissionTypeViewSet, basename='commission_type')
 # Suppliers & Customers
@@ -63,7 +64,7 @@ router.register(r'purchase-returns', PurchaseReturnViewSet, basename='purchase_r
 # Finance
 router.register(r'settlements', SettlementViewSet, basename='settlement')
 router.register(r'expenses', ExpenseViewSet, basename='expense')
-router.register(r'cash-transactions', CashTransactionViewSet, basename='cash_transaction')
+router.register(r'finance/cash', CashTransactionViewSet, basename='cash_transaction')
 router.register(r'account-groups', AccountGroupViewSet, basename='account_group')
 router.register(r'accounts', AccountViewSet, basename='account')
 router.register(r'partners', PartnerViewSet, basename='partner')

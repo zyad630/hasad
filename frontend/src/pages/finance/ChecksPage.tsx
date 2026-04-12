@@ -106,7 +106,7 @@ export default function ChecksPage() {
                     <span className="text-lg font-black text-emerald-600">{parseFloat(check.amount).toLocaleString()}</span>
                   </td>
                   <td className="px-6 py-4 font-bold text-[11px] text-zinc-500 uppercase border-x border-zinc-50">
-                    {new Date(check.due_date).toLocaleDateString()}
+                    {new Date(check.due_date).toLocaleDateString('en-GB')}
                   </td>
                   <td className="px-6 py-4 border-x border-zinc-50">
                     <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${

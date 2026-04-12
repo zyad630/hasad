@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.core.serializers.json import DjangoJSONEncoder
 from django.contrib.auth.models import AbstractUser, UserManager
 from .managers import BaseTenantModel
 
@@ -109,7 +110,7 @@ class CustomUser(AbstractUser):
         verbose_name="المحل التابع له"
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='cashier', verbose_name="الصلاحية")
-    permissions = models.JSONField(default=list, blank=True, verbose_name="الصلاحيات التفصيلية")
+    permissions = models.JSONField(default=list, blank=True, encoder=DjangoJSONEncoder, verbose_name="الصلاحيات التفصيلية")
 
     class Meta:
         verbose_name = 'المستخدم'
@@ -129,9 +130,9 @@ class AuditLog(models.Model):
     action = models.CharField(max_length=50, verbose_name="الإجراء")
     entity_id = models.CharField(max_length=255, null=True, blank=True, verbose_name="معرف الكيان")
     entity_type = models.CharField(max_length=100, verbose_name="نوع الكيان")
-    before_data = models.JSONField(default=dict, blank=True, verbose_name="البيانات السابقة")
-    after_data = models.JSONField(default=dict, blank=True, verbose_name="البيانات الجديدة")
-    delta = models.JSONField(default=dict, blank=True, verbose_name="الفروقات")
+    before_data = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder, verbose_name="البيانات السابقة")
+    after_data = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder, verbose_name="البيانات الجديدة")
+    delta = models.JSONField(default=dict, blank=True, encoder=DjangoJSONEncoder, verbose_name="الفروقات")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ العملية")
 
     class Meta:

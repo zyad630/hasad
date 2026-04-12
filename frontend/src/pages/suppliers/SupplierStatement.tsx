@@ -103,8 +103,8 @@ export default function SupplierStatement() {
                   {statement?.entries?.map((e: any, idx: number) => (
                     <tr key={idx} className="hover:bg-zinc-50/20 transition-colors">
                        <td className="px-6 py-5">
-                          <div className="text-sm font-bold text-zinc-600">{new Date(e.date).toLocaleDateString('en-US')}</div>
-                          <div className="text-[10px] text-zinc-300">{new Date(e.date).toLocaleTimeString('en-US')}</div>
+                          <div className="text-sm font-bold text-zinc-600">{new Date(e.date).toLocaleDateString('en-GB')}</div>
+                          <div className="text-[10px] text-zinc-300">{new Date(e.date).toLocaleTimeString('en-GB')}</div>
                        </td>
                        <td className="px-6 py-5 font-bold text-zinc-700 text-sm">{e.description}</td>
                        <td className="px-6 py-5 text-[10px] font-mono text-zinc-400 uppercase">

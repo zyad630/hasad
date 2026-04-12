@@ -45,13 +45,31 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-[#0f2419] flex items-center justify-center p-6 relative overflow-hidden font-arabic" dir="rtl">
       
-      {/* ──── Legacy Floating Veggie Grid Overlay ──── */}
-      <div className="absolute inset-0 z-0 opacity-10 pointer-events-none grid grid-cols-6 gap-20 py-20 pr-10">
-         {[...Array(24)].map((_, i) => (
-           <div key={i} className={`text-5xl translate-y-[${i*10}px] animate-bounce`} style={{animationDelay: `${i*0.5}s`, animationDuration: '6s'}}>
-             {['🍅', '🥦', '🥕', '🍆', '🍋', '🍇'][i % 6]}
-           </div>
-         ))}
+      {/* ──── Advanced Neon Veggie Grid ──── */}
+      <div className="absolute inset-0 z-0 pointer-events-none grid grid-cols-6 gap-20 py-20 pr-10 overflow-hidden">
+         {[...Array(30)].map((_, i) => {
+            const veggies = [
+              { icon: '🍅', color: 'red' },
+              { icon: '🥦', color: 'green' },
+              { icon: '🥕', color: 'orange' },
+              { icon: '🍆', color: 'purple' },
+              { icon: '🍋', color: 'yellow' },
+              { icon: '🍇', color: 'indigo' }
+            ];
+            const item = veggies[i % veggies.length];
+            return (
+              <div 
+                key={i} 
+                className={`text-6xl veggie-neon-pulse veggie-glow-${item.color} flex items-center justify-center`}
+                style={{
+                  animationDelay: `${(i % 5) * 1.2 + (Math.floor(i/6) * 0.8)}s`,
+                  animationDuration: `3s`
+                }}
+              >
+                {item.icon}
+              </div>
+            );
+         })}
       </div>
 
       <div className="max-w-[450px] w-full relative z-10 animate-fade-in group">

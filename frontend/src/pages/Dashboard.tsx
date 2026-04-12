@@ -69,7 +69,7 @@ export default function Dashboard() {
       <div className="page-title">
         <div className="title-text">
           <h2>لوحة التحكم اليومية</h2>
-          <p>البيانات الحية لهذا اليوم — {d.today_date || new Date().toLocaleDateString('en-US')}</p>
+          <p>البيانات الحية لهذا اليوم — {d.today_date || new Date().toLocaleDateString('en-GB')}</p>
         </div>
         <div className="title-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button className="btn btn-ghost" title="تحديث" onClick={() => refetch()}>
@@ -155,7 +155,7 @@ export default function Dashboard() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: '13px' }}>فاتورة #{typeof s.id === 'string' ? s.id.slice(-6) : s.id}</div>
                 <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                  {s.payment_type === 'cash' ? '💵 كاش' : '📋 ذمة'} · {new Date(s.sale_date || Date.now()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  {s.payment_type === 'cash' ? '💵 كاش' : '📋 ذمة'} · {new Date(s.sale_date || Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
               <span style={{ fontWeight: 900, fontSize: '15px', color: '#059669', fontFamily: 'monospace' }}>

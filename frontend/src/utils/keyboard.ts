@@ -7,6 +7,9 @@ export const initGlobalKeyboardNavigation = () => {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       const activeEl = document.activeElement as HTMLElement;
+
+      // Allow screens/components to own Enter behavior (e.g. voucher grids)
+      if (activeEl && (activeEl.closest('[data-enter-scope="local"]') as HTMLElement | null)) return;
       
       // Allow multi-line input in textareas
       if (activeEl && activeEl.tagName === 'TEXTAREA') return;

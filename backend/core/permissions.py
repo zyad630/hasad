@@ -1,7 +1,7 @@
 from rest_framework.permissions import BasePermission
 
 class IsManagerOrOwner(BasePermission):
-    ALLOWED_ROLES = {'owner', 'manager'}
+    ALLOWED_ROLES = {'owner', 'manager', 'super_admin'}
     message = 'ليس لديك صلاحية تنفيذ هذا الإجراء المالي'
 
     def has_permission(self, request, view):

@@ -203,7 +203,7 @@ export default function PayrollPage() {
                     </div>
                     <div className="flex gap-2 bg-white p-1.5 rounded-2xl border border-zinc-200">
                         <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-transparent border-none outline-none font-black px-3 py-1 text-sm">
-                            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                            {Array.from({length: 5}, (_, i) => now.getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
                         </select>
                         <div className="w-px h-6 bg-zinc-100 mt-1"></div>
                         <select value={selectedMonth} onChange={e => setSelectedMonth(parseInt(e.target.value))} className="bg-transparent border-none outline-none font-black px-3 py-1 text-sm">
@@ -299,7 +299,7 @@ export default function PayrollPage() {
                             <div className="font-black text-lg">{run.period}</div>
                             <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black rounded-lg uppercase">ترحيل مكتمل</span>
                         </div>
-                        <div className="text-xs text-zinc-400 font-bold mb-3">{run.run_date}</div>
+                        <div className="text-xs text-zinc-400 font-bold mb-3">{new Date(run.run_date).toLocaleDateString('en-GB')}</div>
                         <div className="flex justify-between items-center">
                             <span className="text-zinc-500 text-sm font-bold">{run.lines?.length} موظف</span>
                             <span className="font-black font-code text-emerald-700">{parseFloat(run.total_net).toLocaleString()} ₪</span>

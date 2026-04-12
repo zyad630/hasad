@@ -258,6 +258,24 @@ class LedgerService:
 
     @staticmethod
     @transaction.atomic
+    def record_partner_initial_capital(partner, user=None):
+        """DR cash → CR partner (initial capital injection)"""
+        if partner.initial_capital <= 0:
+            return
+            
+        LedgerService._double_entry(
+            tenant=partner.tenant,
+            dr_type='cash',     dr_id=partner.tenant.id,
+            cr_type='partner',  cr_id=partner.id,
+            amount=partner.initial_capital,
+            currency_code='ILS',
+            ref_type='partner_capital', ref_id=partner.id,
+            description=f'رأس مال مبدئي - الشريك: {partner.name}',
+            user=user,
+        )
+
+    @staticmethod
+    @transaction.atomic
     def record_supplier_payment(tenant, supplier, amount, user=None, reference_id=None, currency_code='ILS'):
         """DR supplier → CR cash (paying the farmer)"""
         amount = Decimal(str(amount)).quantize(MONEY, ROUND_HALF_UP)

@@ -200,7 +200,7 @@ export default function AccountStatement() {
                   <tr><td colSpan={5} className="py-20 text-center font-bold text-zinc-400">لا توجد حركات لعرضها.</td></tr>
               ) : entries.map((e: any, idx: number) => (
                   <tr key={idx} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
-                      <td className="px-6 py-4 font-code text-sm text-zinc-500">{new Date(e.date).toLocaleDateString('ar-EG')}</td>
+                      <td className="px-6 py-4 font-code text-sm text-zinc-500">{new Date(e.date).toLocaleDateString('en-GB')}</td>
                       <td className="px-6 py-4 font-bold text-on-surface">{e.description}</td>
                       <td className="px-6 py-4 font-black font-code text-rose-600">{e.type === 'DR' ? fmt(e.foreign_amount) : ''}</td>
                       <td className="px-6 py-4 font-black font-code text-emerald-600">{e.type === 'CR' ? fmt(e.foreign_amount) : ''}</td>

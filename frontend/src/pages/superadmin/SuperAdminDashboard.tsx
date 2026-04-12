@@ -25,6 +25,10 @@ const superAdminApi = api.injectEndpoints({
       }),
       invalidatesTags: ['SuperAdmin'] as any,
     }),
+    getSuperAdminUsers: build.query({
+      query: (tenantId?: string) => `superadmin/users/${tenantId ? `?tenant_id=${tenantId}` : ''}`,
+      providesTags: ['SuperAdmin'] as any,
+    }),
   }),
 });
 
@@ -34,6 +38,7 @@ export const {
   useCreateTenantMutation,
   useToggleTenantStatusMutation,
   useDeleteTenantMutation,
+  useGetSuperAdminUsersQuery,
 } = superAdminApi;
 
 // ── Mock chart data ───────────────────────────────────────────────────────────
@@ -53,10 +58,15 @@ export default function SuperAdminDashboard() {
   const [deleteTenant] = useDeleteTenantMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [usersModal, setUsersModal] = useState<{ open: boolean; tenantId: string | null; tenantName: string }>({
+    open: false, tenantId: null, tenantName: ''
+  });
   const [search, setSearch] = useState('');
   const [formData, setFormData] = useState({
     tenant_name: '', subdomain: '', owner_username: '', owner_password: '', role: 'owner',
   });
+
+  const { data: tenantUsers, isLoading: loadingUsers } = useGetSuperAdminUsersQuery(usersModal.tenantId || '', { skip: !usersModal.tenantId });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,7 +275,7 @@ export default function SuperAdminDashboard() {
                           className="btn btn-sm"
                           title="إدارة المستخدمين"
                           style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
-                          onClick={() => showToast(`إدارة مستخدمي ${t.name} — قيد التطوير`, 'info')}
+                          onClick={() => setUsersModal({ open: true, tenantId: t.id, tenantName: t.name })}
                         >
                           <i className="fa-solid fa-users-gear"></i> مستخدمون
                         </button>
@@ -370,6 +380,65 @@ export default function SuperAdminDashboard() {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      {/* ── Users Modal ── */}
+      <div className={`modal ${usersModal.open ? 'show' : ''}`}>
+        <div className="modal-backdrop" onClick={() => setUsersModal({ ...usersModal, open: false })}></div>
+        <div className="modal-box" style={{ maxWidth: '800px' }}>
+          <div className="modal-header" style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <div className="modal-title">
+                <i className="fa-solid fa-users-gear" style={{ marginLeft: '10px', color: '#1d4ed8' }}></i>
+                مستخدمي {usersModal.tenantName}
+              </div>
+            </div>
+            <button className="modal-close" onClick={() => setUsersModal({ ...usersModal, open: false })}>
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div className="modal-body">
+            {loadingUsers ? <VegetableLoader text="جاري جلب القائمة..." /> : (
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                     <tr>
+                        <th>المستخدم</th>
+                        <th>الدور</th>
+                        <th>البريد / الجوال</th>
+                        <th>الحالة</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                    {(tenantUsers || []).map((u: any) => (
+                      <tr key={u.id}>
+                        <td>
+                           <div style={{ fontWeight: 800 }}>{u.username}</div>
+                           <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>ID: {u.id.slice(0, 8)}</div>
+                        </td>
+                        <td>
+                           <span className="badge badge-primary">{u.role}</span>
+                        </td>
+                        <td>
+                           <div style={{ fontSize: 13 }}>{u.email || '—'}</div>
+                           <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{u.phone || '—'}</div>
+                        </td>
+                        <td>
+                           <span className={`badge ${u.is_active ? 'badge-success' : 'badge-danger'}`}>
+                              {u.is_active ? 'نشط' : 'معطل'}
+                           </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={() => setUsersModal({ ...usersModal, open: false })}>إغلاق</button>
+          </div>
         </div>
       </div>
     </div>

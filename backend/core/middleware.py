@@ -15,9 +15,16 @@ class TenantMiddleware(MiddlewareMixin):
         
         # Super Admin / Localhost / Render handling
         allowed_hosts = ['localhost', '127.0.0.1', 'hisba.saas', 'hasad-backend.onrender.com']
-        
-        # Check if current host is an onrender.com host to skip tenant check for management
-        if host in allowed_hosts or host.endswith('onrender.com') or '.' not in host:
+        is_allowed_host = host in allowed_hosts or host.endswith('onrender.com') or '.' not in host
+
+        if is_allowed_host:
+            # Check if user is already authenticated (AuthenticationMiddleware runs before us in settings.py)
+            # Actually, in settings.py, AuthenticationMiddleware is before TenantMiddleware.
+            if hasattr(request, 'user') and request.user.is_authenticated and request.user.tenant:
+                request.tenant = request.user.tenant
+                set_current_tenant(request.user.tenant)
+                return None
+            
             request.tenant = None
             set_current_tenant(None)
             return None

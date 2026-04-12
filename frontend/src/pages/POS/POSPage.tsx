@@ -3,6 +3,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../api/baseApi';
 import { VegetableLoader } from '../../components/ui/VegetableLoader';
 import { SmartSearch } from '../../components/ui/SmartSearch';
+import { formatDateDisplay } from '../../utils/dateUtils';
 
 function stripDiacritics(str: string): string {
   if (!str) return '';
@@ -41,7 +42,7 @@ interface CartLine {
   unit: string;
   qty: string;
   gross_weight: string;
-  tare_weight: number;
+  tare_weight: string; // Changed to string for input consistency
   net_weight: string;
   price: string;
   price_on: 'gross' | 'net';
@@ -69,6 +70,7 @@ export default function POSPage() {
   const globalUnits = globalUnitsRaw?.results || (Array.isArray(globalUnitsRaw) ? globalUnitsRaw : []);
   
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isDateFocused, setIsDateFocused] = useState(false);
   const [payType, setPayType] = useState<'cash' | 'credit'>('cash');
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [invoiceDiscount, setInvoiceDiscount] = useState<number>(0);
@@ -96,7 +98,7 @@ export default function POSPage() {
     unit: 'صندوق',
     qty: '',
     gross_weight: '',
-    tare_weight: 0,
+    tare_weight: '0',
     net_weight: '',
     price: '',
     price_on: 'net',
@@ -115,14 +117,18 @@ export default function POSPage() {
     const newCart = [...cart];
     newCart[index] = { ...newCart[index], [field]: value };
     
-    // Auto-calculate on qty/gross weight updates
-    if (field === 'qty' || field === 'gross_weight') {
+    // Auto-calculate on qty/gross weight/tare updates
+    if (field === 'qty' || field === 'gross_weight' || field === 'tare_weight') {
       const q = parseFloat(newCart[index].qty) || 0;
       const g = parseFloat(newCart[index].gross_weight) || 0;
       const tpu = newCart[index].tare_per_unit;
       
-      const tare_total = q * tpu;
-      newCart[index].tare_weight = tare_total;
+      // If we updated qty, recalculate tare. If we updated tare manually, use it.
+      let tare_total = parseFloat(newCart[index].tare_weight) || 0;
+      if (field === 'qty') {
+         tare_total = q * tpu;
+         newCart[index].tare_weight = tare_total.toString();
+      }
       
       if (g > 0) {
         newCart[index].net_weight = Math.max(0, g - tare_total).toString();
@@ -137,23 +143,33 @@ export default function POSPage() {
   const handleKeyDown = (e: React.KeyboardEvent, index: number, field: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // Flow logic:
-      // ItemName -> Qty -> Unit -> Gross -> Price -> Commission -> Discount -> Empties Check -> Empties Count -> Next Line
-      const flow = ['qty', 'unit', 'gross_weight', 'price', 'commission_rate', 'discount', 'has_empties'];
+      // Flow logic: House-by-House (Cell-by-Cell)
+      // ItemName -> Qty -> Unit -> Gross -> Tare -> Price -> Commission -> Discount -> Empties Check -> Empties Count -> Next Line
+      const flow = ['qty', 'unit', 'gross_weight', 'tare_weight', 'price', 'commission_rate', 'discount', 'has_empties'];
       if(cart[index].has_empties) flow.push('empties_count');
 
       const currentIndex = flow.indexOf(field);
       if (currentIndex > -1 && currentIndex < flow.length - 1) {
          const nextField = flow[currentIndex + 1];
-         document.getElementById(`cart-${index}-${nextField}`)?.focus();
+         setTimeout(() => {
+            const el = document.getElementById(`cart-${index}-${nextField}`);
+            if (el) {
+                el.focus();
+                if (el instanceof HTMLInputElement) el.select();
+            }
+         }, 10);
       } else if (currentIndex === flow.length - 1) {
          if (index === cart.length - 1) {
-           setCart([...cart, { ...emptyLine }]);
-           setTimeout(() => {
-             document.getElementById(`cart-${index + 1}-item_search`)?.focus();
-           }, 50);
+            const newLine = { ...emptyLine };
+            // Copy commission from current line if exists
+            newLine.commission_rate = cart[index].commission_rate;
+            newLine.commission_calc_type = cart[index].commission_calc_type;
+            setCart([...cart, newLine]);
+            setTimeout(() => {
+              document.getElementById(`cart-${index + 1}-item_search`)?.focus();
+            }, 50);
          } else {
-           document.getElementById(`cart-${index + 1}-item_search`)?.focus();
+            document.getElementById(`cart-${index + 1}-item_search`)?.focus();
          }
       }
     }
@@ -348,11 +364,15 @@ export default function POSPage() {
                 style={{ width:'100%' }}
              />
           </div>
-          <div style={{ width: '180px' }}>
+          <div style={{ width: '180px', position: 'relative' }}>
             <input 
-              type="date" 
-              value={saleDate} 
-              onChange={(e) => setSaleDate(e.target.value)} 
+              id="header-sale-date"
+              type={isDateFocused ? 'date' : 'text'}
+              placeholder="DD/MM/YYYY"
+              value={isDateFocused ? saleDate : formatDateDisplay(saleDate)} 
+              onChange={(e) => setSaleDate(e.target.value)}
+              onFocus={() => setIsDateFocused(true)}
+              onBlur={() => setIsDateFocused(false)}
               style={{ width: '100%', height: '46px', borderRadius: '12px', background: '#e4e4e7', padding: '0 12px', fontWeight: 900, outline: 'none', border: '0', textAlign: 'center' }}
             />
           </div>
@@ -454,8 +474,8 @@ export default function POSPage() {
                          <td style={{ padding: '4px' }}>
                             <input id={`cart-${idx}-gross_weight`} value={line.gross_weight} onChange={(e)=>updateLine(idx,'gross_weight',e.target.value)} onKeyDown={(e)=>handleKeyDown(e,idx,'gross_weight')} style={{ width: '100%', padding: '8px', border: '1px solid #e4e4e7', borderRadius: '6px', textAlign: 'center', fontWeight: 900 }} inputMode="numeric" pattern="[0-9.]*" dir="ltr" />
                          </td>
-                         <td style={{ padding: '4px', textAlign: 'center', fontWeight: 900, color: '#ef4444', background: '#fee2e2' }}>
-                            {line.tare_weight}
+                         <td style={{ padding: '4px' }}>
+                            <input id={`cart-${idx}-tare_weight`} value={line.tare_weight} onChange={(e)=>updateLine(idx,'tare_weight',e.target.value)} onKeyDown={(e)=>handleKeyDown(e,idx,'tare_weight')} style={{ width: '100%', padding: '8px', border: '1px solid #ef4444', borderRadius: '6px', textAlign: 'center', fontWeight: 900, color: '#ef4444', background: '#fee2e2' }} inputMode="numeric" pattern="[0-9.]*" dir="ltr" />
                          </td>
                          <td style={{ padding: '4px', textAlign: 'center', fontWeight: 900, color: '#10b981', background: '#d1fae5' }}>
                             {line.net_weight}
@@ -488,10 +508,10 @@ export default function POSPage() {
 
           <div style={{ padding: '20px', background: '#fafafa', borderTop: '2px solid #e4e4e7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
              <div style={{ display: 'flex', gap: '30px', alignItems: 'center', fontWeight: 900 }}>
-                <div>الإجمالي: <span style={{ color: '#059669', fontSize: '18px' }} dir="ltr">{subtotal.toLocaleString()} ₪</span></div>
+                <div>الإجمالي: <span style={{ color: '#059669', fontSize: '18px' }}>{subtotal.toLocaleString()} شيكل</span></div>
                 
                 {totalCommission > 0 && (
-                   <div>العمولة: <span style={{ color: '#0f766e', fontSize: '18px' }} dir="ltr">{totalCommission.toLocaleString()} ₪</span></div>
+                   <div>العمولة: <span style={{ color: '#0f766e', fontSize: '18px' }}>{totalCommission.toLocaleString()} شيكل</span></div>
                 )}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#fee2e2', padding: '5px 15px', borderRadius: '10px' }}>
@@ -505,14 +525,14 @@ export default function POSPage() {
                    />
                 </div>
 
-                <div>صافي الفاتورة: <span style={{ color: '#0f766e', fontSize: '24px' }} dir="ltr">{netTotal.toLocaleString()} ₪</span></div>
+                <div>صافي الفاتورة: <span style={{ color: '#0f766e', fontSize: '24px' }}>{netTotal.toLocaleString()} شيكل</span></div>
              </div>
              <div style={{ display: 'flex', gap: '15px' }}>
                 <button onClick={handleSaveDraft} style={{ background: '#f59e0b', color: 'white', padding: '12px 20px', borderRadius: '12px', fontWeight: 900, fontSize: '16px' }}>
                    حفظ مسودة <span style={{ background: 'rgba(255,255,255,0.2)', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', marginLeft:'5px' }}>F2</span>
                 </button>
                 <button onClick={handleCheckout} style={{ background: '#059669', color: 'white', padding: '12px 30px', borderRadius: '12px', fontWeight: 900, fontSize: '16px', boxShadow: '0 10px 25px rgba(5,150,105,0.2)' }}>
-                   ترحيل הפاتورة <span style={{ background: 'rgba(255,255,255,0.2)', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', marginLeft:'5px' }}>F10</span>
+                   ترحيل الفاتورة <span style={{ background: 'rgba(255,255,255,0.2)', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', marginLeft:'5px' }}>F10</span>
                 </button>
                 <button onClick={clearCart} style={{ background: '#fff', color: '#ef4444', border: '1px solid #ef4444', padding: '12px 20px', borderRadius: '12px', fontWeight: 900 }}>
                    إلغاء <span style={{ background: '#fee2e2', padding:'2px 6px', borderRadius:'4px', fontSize:'11px', marginLeft:'5px' }}>Esc</span>

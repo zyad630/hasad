@@ -3,6 +3,7 @@ import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState } from '../store';
 import { logout } from '../store/authSlice';
+import { formatDateDisplay } from '../utils/dateUtils';
 
 export const ProtectedLayout = () => {
     const dispatch = useDispatch();
@@ -189,7 +190,7 @@ export const ProtectedLayout = () => {
                             />
                         </div>
                         <span className="today-date" id="today-date">
-                            {new Date().toLocaleDateString('en-US')}
+                            {formatDateDisplay(new Date())}
                         </span>
                     </div>
                     <div className="header-right">

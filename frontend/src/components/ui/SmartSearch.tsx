@@ -147,6 +147,7 @@ export function SmartSearch({
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
     }
     if (!open) {
       if (e.key === 'Enter' && !query.trim() && onEnterEmpty) {
@@ -163,9 +164,11 @@ export function SmartSearch({
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       setActiveIdx(i => Math.min(i + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
+      e.stopPropagation();
       setActiveIdx(i => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       if (activeIdx >= 0 && results[activeIdx]) {
@@ -174,6 +177,7 @@ export function SmartSearch({
         handleSelect(results[0]);
       }
     } else if (e.key === 'Escape') {
+      e.stopPropagation();
       setOpen(false);
       setActiveIdx(-1);
     }

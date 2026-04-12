@@ -23,7 +23,9 @@ class PartnerViewSet(viewsets.ModelViewSet):
         return Partner.objects.filter(tenant=self.request.tenant)
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self.request.tenant)
+        partner = serializer.save(tenant=self.request.tenant)
+        from .services import LedgerService
+        LedgerService.record_partner_initial_capital(partner, user=self.request.user)
 
     @action(detail=True, methods=['get'], url_path='account-statement')
     def account_statement(self, request, pk=None):

@@ -113,7 +113,9 @@ export default function ExpensesPage() {
             <tbody className="divide-y divide-zinc-50">
               {(expenses || []).map((exp: any) => (
                 <tr key={exp.id} className="hover:bg-zinc-50/50 transition-colors group">
-                  <td className="px-6 py-5 font-bold text-zinc-500" dir="ltr">{exp.expense_date}</td>
+                  <td className="px-6 py-5 font-bold text-zinc-500" dir="ltr">
+                    {new Date(exp.expense_date).toLocaleDateString('en-GB')}
+                  </td>
                   <td className="px-6 py-5">
                     <span className="px-3 py-1.5 bg-zinc-100 text-on-surface rounded-xl text-xs font-black">
                       {exp.description || exp.category || 'مصروف'}

@@ -62,7 +62,10 @@ export const ProtectedLayout = () => {
                          <i className="fa-solid fa-cash-register"></i><span>نقطة البيع</span>
                     </Link>
                     <Link to="/market/floor" className={getNavClass('/market/floor')}>
-                        <i className="fa-solid fa-book-open"></i><span>دفتر الحركات اليومية</span>
+                        <i className="fa-solid fa-book-open"></i><span>دفتر الحركات اليومية (كامل)</span>
+                    </Link>
+                    <Link to="/market/transcription" className={getNavClass('/market/transcription')}>
+                        <i className="fa-solid fa-edit"></i><span>دفتر حركات مبسط (تفريغ)</span>
                     </Link>
                     <Link to="/shipments" className={getNavClass('/shipments')}>
                         <i className="fa-solid fa-truck"></i><span>الإرساليات والمزارعين</span>
@@ -91,7 +94,7 @@ export const ProtectedLayout = () => {
                                 <i className="fa-solid fa-user-tag" style={{ fontSize: '11px' }}></i><span>حساب زبون</span>
                             </Link>
                             <Link to="/suppliers?add=1" className={getNavClass('/suppliers?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
-                                <i className="fa-solid fa-tractor" style={{ fontSize: '11px' }}></i><span>إضافة مورد جديد</span>
+                                <i className="fa-solid fa-tractor" style={{ fontSize: '11px' }}></i><span>إضافة مزارع جديد</span>
                             </Link>
                             <Link to="/hr/payroll?add=1" className={getNavClass('/hr/payroll?add=1')} style={{ padding: '8px 12px', fontSize: '12px' }}>
                                 <i className="fa-solid fa-id-badge" style={{ fontSize: '11px' }}></i><span>إضافة موظف جديد</span>
@@ -103,8 +106,11 @@ export const ProtectedLayout = () => {
                     )}
 
                     <div className="nav-section-label">المحاسبة</div>
-                    <Link to="/finance/cash" className={getNavClass('/finance')}>
+                    <Link to="/finance/cash" className={getNavClass('/finance/cash')}>
                         <i className="fa-solid fa-file-invoice-dollar"></i><span>السندات والمالية</span>
+                    </Link>
+                    <Link to="/finance/journal-voucher" className={getNavClass('/finance/journal-voucher')}>
+                        <i className="fa-solid fa-scale-balanced"></i><span>مستند قيد (تسويات)</span>
                     </Link>
                     
                     <div 

@@ -6,7 +6,22 @@ import { TableSkeleton } from '../../components/Skeleton';
 import { useGetSuppliersQuery } from '../suppliers/Suppliers';
 import { useGetCustomersQuery } from '../suppliers/Customers';
 import { useGetCurrenciesQuery } from '../settings/Currencies';
+import SmartSearch from '../../components/ui/SmartSearch';
+import { formatDateDisplay } from '../../utils/dateUtils';
 
+const PALESTINE_BANKS: Record<string, string> = {
+  '89': 'بنك فلسطين',
+  '86': 'البنك الإسلامي الفلسطيني',
+  '81': 'البنك الإسلامي العربي',
+  '38': 'البنك العربي',
+  '46': 'بنك القاهرة عمان',
+  '83': 'بنك القدس',
+  '88': 'بنك الإسكان',
+  '49': 'بنك الأردن',
+  '82': 'بنك الصفا',
+  '85': 'البنك الوطني',
+  '84': 'بنك الاستثمار الفلسطيني'
+};
 const inventoryApi = api.injectEndpoints({
   endpoints: (build) => ({
     getItems: build.query({
@@ -38,20 +53,25 @@ const marketApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Movements', 'Cash', 'Suppliers', 'Customers'],
     }),
+    searchParties: build.query({
+      query: (q) => `reports/search-parties/?q=${encodeURIComponent(q)}`,
+    }),
   }),
 });
 
-export const { useGetMovementsQuery, useCreateMovementMutation } = marketApi;
+export const { useGetMovementsQuery, useCreateMovementMutation, useSearchPartiesQuery } = marketApi;
 
 export default function DailyMovements() {
   const { showToast } = useToast();
   const today = new Date().toISOString().split('T')[0];
   const [dateFrom, setDateFrom] = useState(today);
   const [dateTo, setDateTo] = useState(today);
+  const [isFromFocused, setIsFromFocused] = useState(false);
+  const [isToFocused, setIsToFocused] = useState(false);
+  const [focusedCheckDateIndex, setFocusedCheckDateIndex] = useState(-1);
   
   const { data: movements, isLoading } = useGetMovementsQuery({ from: dateFrom, to: dateTo });
-  const { data: suppliers } = useGetSuppliersQuery({});
-  const { data: customers } = useGetCustomersQuery({});
+  const [triggerSearchParties] = marketApi.useLazySearchPartiesQuery();
   const { data: currenciesData } = useGetCurrenciesQuery({});
   const { data: itemsData } = useGetItemsQuery({});
   const [createMovement] = useCreateMovementMutation();
@@ -61,17 +81,19 @@ export default function DailyMovements() {
 
   // ── All state declarations ──────────────────────────────────────────────────
   const [newRow, setNewRow] = useState<any>({
-    supplier: '', item_name: '', unit: '', count: '',
+    supplier: '', supplier_name: '', item_name: '', unit: '', count: '',
     gross_weight: '', net_weight: '', purchase_price: '',
-    commission_rate: 5, buyer: '', sale_qty: '', sale_price: '',
+    commission_rate: 10, buyer: '', buyer_name: '', sale_qty: '', sale_price: '',
     box_price: 0, currency: '', cash_received: '', check_received: '',
-    expense_amount: ''
+    expense_amount: '',
+    buyer_commission_rate: 0, loading_fee: 0, unloading_fee: 0, floor_fee: 0, delivery_fee: 0
   });
 
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [voiceText, setVoiceText] = useState('');
   const [isAnalysing, setIsAnalysing] = useState(false);
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
+  const [isFeesModalOpen, setIsFeesModalOpen] = useState(false);
   const [tempChecks, setTempChecks] = useState<any[]>([]);
 
   // ── Handler functions (declared after state) ──────────────────────────────
@@ -118,9 +140,11 @@ export default function DailyMovements() {
         ...newRow,
         item_name: '', count: 0, gross_weight: 0, net_weight: 0,
         purchase_price: 0, buyer: '', sale_qty: 0, sale_price: 0,
-        cash_received: 0, check_received: 0, expense_amount: 0
+        cash_received: 0, check_received: 0, expense_amount: 0,
+        loading_fee: 0, unloading_fee: 0, floor_fee: 0, delivery_fee: 0, buyer_commission_rate: 0
       });
       setTempChecks([]);
+      setTimeout(() => document.getElementById('nr-expense_amount')?.focus(), 100);
     } catch (err: any) {
       if (err?.data && !err?.data?.detail) {
          const errorMsgs = Object.entries(err.data).map(([k, v]) => {
@@ -133,6 +157,7 @@ export default function DailyMovements() {
       }
     }
   };
+
 
   const handleVoiceInput = () => {
     const mockTranscript = prompt("قل مثلاً: (أحمد باع 10 كراتين بندورة بسعر 5 شيكل لرامي)");
@@ -198,17 +223,25 @@ export default function DailyMovements() {
            <div className="flex bg-white p-2 rounded-2xl shadow-sm border border-zinc-100 items-center gap-2">
               <span className="text-[10px] font-black text-zinc-400 px-2">من</span>
               <input 
-                type="date" 
-                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-2 text-sm"
-                value={dateFrom}
+                id="date-filter-from"
+                type={isFromFocused ? 'date' : 'text'}
+                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-2 text-sm text-center"
+                value={isFromFocused ? dateFrom : formatDateDisplay(dateFrom)}
                 onChange={(e) => setDateFrom(e.target.value)}
+                onFocus={() => setIsFromFocused(true)}
+                onBlur={() => setIsFromFocused(false)}
+                placeholder="DD/MM/YYYY"
               />
               <span className="text-[10px] font-black text-zinc-400 px-2">إلى</span>
               <input 
-                type="date" 
-                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-2 text-sm"
-                value={dateTo}
+                id="date-filter-to"
+                type={isToFocused ? 'date' : 'text'}
+                className="bg-transparent border-none outline-none font-bold text-zinc-600 px-2 text-sm text-center"
+                value={isToFocused ? dateTo : formatDateDisplay(dateTo)}
                 onChange={(e) => setDateTo(e.target.value)}
+                onFocus={() => setIsToFocused(true)}
+                onBlur={() => setIsToFocused(false)}
+                placeholder="DD/MM/YYYY"
               />
            </div>
         </div>
@@ -220,9 +253,9 @@ export default function DailyMovements() {
             <table className="w-full text-right border-collapse min-w-[1800px]">
                <thead>
                   <tr className="bg-zinc-50 text-[10px] font-black text-zinc-400 uppercase tracking-widest border-b border-zinc-100 font-cairo">
-                     <th className="px-4 py-4 w-15 italic">رقم</th>
+
                      <th className="px-4 py-4 w-32 border-l border-zinc-100 bg-rose-50/30 text-rose-700 font-black">صرف / دفع</th>
-                     <th className="px-4 py-4 w-56 font-black">المزارع (المورد)</th>
+                     <th className="px-4 py-4 w-56 font-black">المزارع</th>
                      <th className="px-4 py-4 w-40 font-black">الصنف</th>
                      <th className="px-4 py-4 w-28 font-black">العدد</th>
                      <th className="px-4 py-4 w-32 font-black">قائم | صافي</th>
@@ -232,6 +265,7 @@ export default function DailyMovements() {
                      <th className="px-4 py-4 w-28 font-black">كمية بيع</th>
                      <th className="px-4 py-4 w-28 font-black">سعر بيع</th>
                      <th className="px-4 py-4 w-32 bg-indigo-50/30 text-indigo-700 font-black">إجمالي البيع</th>
+                     <th className="px-4 py-4 w-28 font-black text-purple-700">عمولات ورسوم</th>
                      <th className="px-4 py-4 w-28 font-black">ثمن كرتون</th>
                      <th className="px-4 py-4 w-32 font-black">نقد / شيك</th>
                      <th className="px-4 py-4 w-20 text-center font-black">إجراء</th>
@@ -240,7 +274,7 @@ export default function DailyMovements() {
                <tbody className="divide-y divide-zinc-50">
                   {/* Matrix Entry Row */}
                   <tr className="bg-primary/5 border-b-2 border-primary/10 group focus-within:bg-primary/10 transition-colors">
-                     <td className="px-4 py-3"><div className="w-10 h-10 rounded-full bg-primary/20 text-primary flex items-center justify-center font-black text-xs">جديد</div></td>
+
                      <td className="px-4 py-3 border-l border-zinc-100">
                         <div className="flex flex-col gap-1">
                            <input id="nr-expense_amount" onKeyDown={e => handleKeyDown(e, 'expense_amount')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center text-rose-600 focus:ring-2 focus:ring-rose-500" placeholder="0.00" value={newRow.expense_amount} onChange={e => setNewRow({...newRow, expense_amount: e.target.value})} />
@@ -251,24 +285,40 @@ export default function DailyMovements() {
                         </div>
                      </td>
                      <td className="px-4 py-3">
-                        <select id="nr-supplier" onKeyDown={e => handleKeyDown(e, 'supplier')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" value={newRow.supplier} onChange={e => setNewRow({...newRow, supplier: e.target.value})}>
-                           <option value="">المزارع...</option>
-                           {(suppliers?.results || suppliers || []).map((s:any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <SmartSearch 
+                           id="nr-supplier"
+                           placeholder="المزارع..."
+                           onSearch={async (q) => {
+                               const res = await triggerSearchParties(q).unwrap();
+                               return res;
+                           }}
+                           renderItem={(p: any) => (
+                             <div className="flex justify-between items-center w-full">
+                                <span className="font-bold">{p.name}</span>
+                                <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{p.type_label}</span>
+                             </div>
+                           )}
+                           onSelect={(p: any) => {
+                               setNewRow(prev => ({...prev, supplier: p.id, supplier_name: p.name}));
+                               setTimeout(() => document.getElementById('nr-item_name')?.focus(), 10);
+                           }}
+                           onEnterEmpty={() => document.getElementById('nr-item_name')?.focus()}
+                           value={newRow.supplier_name}
+                        />
                      </td>
                      <td className="px-4 py-3">
-                        <input 
+                        <SmartSearch 
                            id="nr-item_name"
-                           onKeyDown={e => handleKeyDown(e, 'item_name')}
-                           list="items-list"
-                           className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" 
-                           placeholder="الصنف..." 
-                           value={newRow.item_name} 
-                           onChange={e => handleItemChange(e.target.value)} 
+                           placeholder="الصنف..."
+                           onSearch={async () => itemsList}
+                           getLabel={(item: any) => item.name}
+                           onSelect={(item: any) => {
+                              handleItemChange(item.name);
+                              setTimeout(() => document.getElementById('nr-count')?.focus(), 10);
+                           }}
+                           onEnterEmpty={() => document.getElementById('nr-count')?.focus()}
+                           value={newRow.item_name}
                         />
-                        <datalist id="items-list">
-                           {itemsList.map((it:any) => <option key={it.id} value={it.name} />)}
-                        </datalist>
                      </td>
                      <td className="px-4 py-3">
                           <input id="nr-count" onKeyDown={e => handleKeyDown(e, 'count')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.count} onChange={e => setNewRow({...newRow, count: e.target.value})} />
@@ -280,7 +330,7 @@ export default function DailyMovements() {
                           </div>
                      </td>
                      <td className="px-4 py-3">
-                          <input id="nr-purchase_price" onKeyDown={e => handleKeyDown(e, 'purchase_price')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.purchase_price} onChange={e => setNewRow({...newRow, purchase_price: e.target.value})} />
+                          <input id="nr-purchase_price" onKeyDown={e => handleKeyDown(e, 'purchase_price')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.purchase_price} onChange={e => setNewRow({...newRow, purchase_price: e.target.value, sale_price: e.target.value})} />
                      </td>
                      <td className="px-4 py-3 bg-emerald-50/10">
                           <div className="text-[10px] font-black text-emerald-800 text-center">
@@ -289,10 +339,26 @@ export default function DailyMovements() {
                           </div>
                      </td>
                      <td className="px-4 py-3 border-r border-zinc-100">
-                        <select id="nr-buyer" onKeyDown={e => handleKeyDown(e, 'buyer')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-bold" value={newRow.buyer} onChange={e => setNewRow({...newRow, buyer: e.target.value})}>
-                           <option value="">المشتري...</option>
-                           {(customers?.results || customers || []).map((c:any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
+                        <SmartSearch 
+                           id="nr-buyer"
+                           placeholder="المشتري..."
+                           onSearch={async (q) => {
+                               const res = await triggerSearchParties(q).unwrap();
+                               return res;
+                           }}
+                           renderItem={(p: any) => (
+                             <div className="flex justify-between items-center w-full">
+                                <span className="font-bold">{p.name}</span>
+                                <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">{p.type_label}</span>
+                             </div>
+                           )}
+                           onSelect={(p: any) => {
+                               setNewRow(prev => ({...prev, buyer: p.id, buyer_name: p.name}));
+                               setTimeout(() => document.getElementById('nr-sale_qty')?.focus(), 10);
+                           }}
+                           onEnterEmpty={() => document.getElementById('nr-sale_qty')?.focus()}
+                           value={newRow.buyer_name}
+                        />
                      </td>
                      <td className="px-4 py-3">
                         <input id="nr-sale_qty" onKeyDown={e => handleKeyDown(e, 'sale_qty')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center" value={newRow.sale_qty} onChange={e => setNewRow({...newRow, sale_qty: e.target.value})} />
@@ -302,12 +368,32 @@ export default function DailyMovements() {
                      </td>
                      <td className="px-4 py-3 bg-indigo-50/10 text-center">
                         <div className="text-xs font-black text-indigo-700">
-                           {( (parseFloat(newRow.sale_qty || 0) * parseFloat(newRow.sale_price || 0)) + (parseFloat(newRow.count || 0) * parseFloat(newRow.box_price || 0)) ).toLocaleString()}
+                           {( 
+                              (parseFloat(newRow.sale_qty || 0) * parseFloat(newRow.sale_price || 0)) + 
+                              (parseFloat(newRow.count || 0) * parseFloat(newRow.box_price || 0)) + 
+                              (( (parseFloat(newRow.sale_qty || 0) * parseFloat(newRow.sale_price || 0)) + (parseFloat(newRow.count || 0) * parseFloat(newRow.box_price || 0)) ) * (parseFloat(newRow.buyer_commission_rate || 0) / 100)) + 
+                              parseFloat(newRow.loading_fee || 0) + 
+                              parseFloat(newRow.delivery_fee || 0)
+                           ).toLocaleString()}
                         </div>
+                     </td>
+                     <td className="px-4 py-3 text-center">
+                        <button 
+                           onClick={() => setIsFeesModalOpen(true)}
+                           className={`px-3 py-1.5 rounded-xl font-black text-[10px] transition-all flex items-center gap-1 mx-auto ${
+                              (newRow.buyer_commission_rate > 0 || newRow.loading_fee > 0 || newRow.unloading_fee > 0 || newRow.floor_fee > 0 || newRow.delivery_fee > 0) 
+                              ? 'bg-purple-600 text-white shadow-md' 
+                              : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                           }`}
+                        >
+                           <span className="material-symbols-outlined text-xs">settings_suggest</span>
+                           تفاصيل الرسوم
+                        </button>
                      </td>
                      <td className="px-4 py-3">
                         <input id="nr-box_price" onKeyDown={e => handleKeyDown(e, 'box_price')} className="w-full bg-white border-zinc-200 rounded-lg p-2 font-black text-center text-zinc-400 text-xs" value={newRow.box_price} onChange={e => setNewRow({...newRow, box_price: e.target.value})} />
                      </td>
+
                      <td className="px-4 py-3">
                         <div className="flex flex-col gap-1 relative group">
                            <input id="nr-cash_received" onKeyDown={e => handleKeyDown(e, 'cash_received')} title="Cash" className="w-full bg-white border-zinc-200 rounded-lg p-1 text-[10px] font-black text-emerald-600 text-center" placeholder="نقدي" value={newRow.cash_received} onChange={e => setNewRow({...newRow, cash_received: e.target.value})} />
@@ -339,7 +425,7 @@ export default function DailyMovements() {
                   {/* Movements List */}
                   {(movements || []).map((m: any) => (
                     <tr key={m.id} className="hover:bg-zinc-50/50 transition-colors animate-slide-up">
-                       <td className="px-4 py-5 font-black text-zinc-400 text-xs text-center italic">#{m.daily_seq}</td>
+
                        <td className="px-4 py-5 border-l border-zinc-100 font-black text-rose-600 text-center">{parseFloat(m.expense_amount).toLocaleString()}</td>
                        <td className="px-4 py-5 font-bold text-zinc-700">{m.supplier_name}</td>
                        <td className="px-4 py-5 font-bold text-zinc-500">{m.item_name}</td>
@@ -421,35 +507,43 @@ export default function DailyMovements() {
                  {tempChecks.map((chk, idx) => (
                    <div key={idx} className="grid grid-cols-4 gap-3 bg-zinc-50 p-4 rounded-2xl relative border border-zinc-100">
                       <div>
-                         <label className="text-[10px] font-black text-zinc-400 block mb-1">رقم الشيك</label>
-                         <input className="w-full bg-white border-zinc-200 rounded-xl p-2 font-bold text-sm" value={chk.check_number} onChange={e => {
-                            const nc = [...tempChecks]; nc[idx].check_number = e.target.value; setTempChecks(nc);
-                         }} />
-                      </div>
-                      <div>
-                         <label className="text-[10px] font-black text-zinc-400 block mb-1">البنك</label>
-                         <input className="w-full bg-white border-zinc-200 rounded-xl p-2 font-bold text-sm" value={chk.bank_name} onChange={e => {
-                            const nc = [...tempChecks]; nc[idx].bank_name = e.target.value; setTempChecks(nc);
-                         }} />
-                      </div>
-                      <div>
-                         <label className="text-[10px] font-black text-zinc-400 block mb-1">تاريخ الاستحقاق</label>
-                         <input type="date" className="w-full bg-white border-zinc-200 rounded-xl p-2 font-bold text-sm" value={chk.due_date} onChange={e => {
-                            const nc = [...tempChecks]; nc[idx].due_date = e.target.value; setTempChecks(nc);
-                         }} />
-                      </div>
-                      <div>
                          <label className="text-[10px] font-black text-zinc-400 block mb-1">المبلغ</label>
                          <div className="flex gap-2">
-                            <input type="number" className="w-full bg-white border-zinc-200 rounded-xl p-2 font-black text-sm text-indigo-600" value={chk.amount} onChange={e => {
+                            <input type="number" id={`chk-amount-${idx}`} className="w-full bg-white border-zinc-200 rounded-xl p-2 font-black text-sm text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500" value={chk.amount} onChange={e => {
                                const nc = [...tempChecks]; nc[idx].amount = e.target.value; setTempChecks(nc);
-                            }} />
+                            }} onKeyDown={e => e.key === 'Enter' && document.getElementById(`chk-no-${idx}`)?.focus()} />
                             {tempChecks.length > 1 && (
                               <button onClick={() => setTempChecks(tempChecks.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-rose-600">
                                  <span className="material-symbols-outlined">delete</span>
                               </button>
                             )}
                          </div>
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black text-zinc-400 block mb-1">رقم الشيك</label>
+                         <input id={`chk-no-${idx}`} className="w-full bg-white border-zinc-200 rounded-xl p-2 font-black text-sm outline-none" value={chk.check_number || ''} onChange={e => {
+                            const nc = [...tempChecks]; nc[idx].check_number = e.target.value; setTempChecks(nc);
+                         }} onKeyDown={e => e.key === 'Enter' && document.getElementById(`chk-bank-${idx}`)?.focus()} />
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black text-zinc-400 block mb-1">البنك</label>
+                         <input id={`chk-bank-${idx}`} className="w-full bg-white border-zinc-200 rounded-xl p-2 font-black text-sm outline-none" value={chk.bank_name || ''} onChange={e => {
+                            const nc = [...tempChecks]; nc[idx].bank_name = e.target.value; setTempChecks(nc);
+                         }} onKeyDown={e => e.key === 'Enter' && document.getElementById(`chk-date-${idx}`)?.focus()} />
+                      </div>
+                      <div>
+                         <label className="text-[10px] font-black text-zinc-400 block mb-1">تاريخ الاستحقاق</label>
+                         <input 
+                            id={`chk-date-${idx}`} 
+                            type={focusedCheckDateIndex === idx ? 'date' : 'text'} 
+                            className="w-full bg-white border-zinc-200 rounded-xl p-2 font-black text-sm outline-none text-center" 
+                            value={focusedCheckDateIndex === idx ? (chk.due_date || '') : formatDateDisplay(chk.due_date || '')} 
+                            onFocus={() => setFocusedCheckDateIndex(idx)}
+                            onBlur={() => setFocusedCheckDateIndex(-1)}
+                            onChange={e => {
+                               const nc = [...tempChecks]; nc[idx].due_date = e.target.value; setTempChecks(nc);
+                            }} 
+                         />
                       </div>
                    </div>
                  ))}
@@ -492,6 +586,59 @@ export default function DailyMovements() {
            </div>
         </div>
       , document.body)}
+
+      {/* Fees & Commissions Modal */}
+      {isFeesModalOpen && createPortal(
+        <div className="fixed inset-0 bg-zinc-950/40 backdrop-blur-md z-[310] flex items-center justify-center p-6 font-cairo">
+           <div className="bg-white max-w-lg w-full rounded-[2.5rem] p-8 shadow-2xl animate-scale-in">
+              <h3 className="text-2xl font-black text-purple-900 flex items-center gap-2 mb-6">
+                 <span className="material-symbols-outlined text-4xl">settings_suggest</span>
+                 العمولات والرسوم الإضافية
+              </h3>
+              
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                 <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-purple-400 uppercase tracking-widest border-b pb-1">رسوم على المزارع</h4>
+                    <div>
+                       <label className="text-xs font-bold text-zinc-500 block mb-1">عمولة المزارع (%)</label>
+                       <input type="number" className="w-full bg-zinc-50 border-zinc-200 rounded-xl p-3 font-black text-rose-600" value={newRow.commission_rate} onChange={e => setNewRow({...newRow, commission_rate: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="text-xs font-bold text-zinc-500 block mb-1">رسوم تنزيل</label>
+                       <input type="number" className="w-full bg-zinc-50 border-zinc-200 rounded-xl p-3 font-black text-rose-600" value={newRow.unloading_fee} onChange={e => setNewRow({...newRow, unloading_fee: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="text-xs font-bold text-zinc-500 block mb-1">رسوم أرضية</label>
+                       <input type="number" className="w-full bg-zinc-50 border-zinc-200 rounded-xl p-3 font-black text-rose-600" value={newRow.floor_fee} onChange={e => setNewRow({...newRow, floor_fee: e.target.value})} />
+                    </div>
+                 </div>
+
+                 <div className="space-y-4">
+                    <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest border-b pb-1">رسوم على الزبون</h4>
+                    <div>
+                       <label className="text-xs font-bold text-zinc-500 block mb-1">عمولة الزبون (%)</label>
+                       <input type="number" className="w-full bg-zinc-50 border-zinc-200 rounded-xl p-3 font-black text-indigo-600" value={newRow.buyer_commission_rate} onChange={e => setNewRow({...newRow, buyer_commission_rate: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="text-xs font-bold text-zinc-500 block mb-1">رسوم تحميل</label>
+                       <input type="number" className="w-full bg-zinc-50 border-zinc-200 rounded-xl p-3 font-black text-indigo-600" value={newRow.loading_fee} onChange={e => setNewRow({...newRow, loading_fee: e.target.value})} />
+                    </div>
+                    <div>
+                       <label className="text-xs font-bold text-zinc-500 block mb-1">رسوم توصيل</label>
+                       <input type="number" className="w-full bg-zinc-50 border-zinc-200 rounded-xl p-3 font-black text-indigo-600" value={newRow.delivery_fee} onChange={e => setNewRow({...newRow, delivery_fee: e.target.value})} />
+                    </div>
+                 </div>
+              </div>
+
+              <button 
+                onClick={() => setIsFeesModalOpen(false)}
+                className="w-full bg-purple-700 text-white py-4 rounded-2xl font-black shadow-xl shadow-purple-900/10 hover:scale-[1.02] active:scale-95 transition-all">
+                 تأكيد وإغلاق
+              </button>
+           </div>
+        </div>
+      , document.body)}
+
 
       {/* Stats Summary Area */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

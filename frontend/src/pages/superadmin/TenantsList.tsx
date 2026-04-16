@@ -95,7 +95,7 @@ const TenantsList = () => {
                     {t.status}
                   </span>
                 </td>
-                <td style={{ padding: '1rem', direction: 'ltr' }}>{new Date(t.trial_ends_at).toLocaleDateString()}</td>
+                <td style={{ padding: '1rem', direction: 'ltr' }}>{new Date(t.trial_ends_at).toLocaleDateString('en-GB')}</td>
                 <td style={{ padding: '1rem', display: 'flex', gap: '0.5rem' }}>
                   <button className="btn btn-secondary" onClick={() => updateStatus({id: t.id, status: t.status === 'active' ? 'suspended' : 'active'})}>
                     <Power size={16} /> {t.status === 'active' ? 'إيقاف' : 'تفعيل'}

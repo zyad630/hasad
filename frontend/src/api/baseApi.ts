@@ -38,7 +38,7 @@ const customBaseQuery = async (args: any, api: any, extraOptions: any) => {
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: customBaseQuery,
-  tagTypes: ['Shipments', 'Suppliers', 'Customers', 'Containers', 'Expenses', 'Sales', 'Settlements', 'Cash', 'Items', 'Tenants', 'SuperAdmin', 'Currencies', 'Movements', 'AccountGroups', 'ExchangeRates', 'Accounts', 'Categories', 'CommissionTypes', 'Receivables', 'Users', 'GlobalUnits', 'Employees', 'Partners', 'Payroll'],
+  tagTypes: ['Shipments', 'Suppliers', 'Customers', 'Containers', 'Expenses', 'Sales', 'Settlements', 'Cash', 'Items', 'Tenants', 'SuperAdmin', 'Currencies', 'Movements', 'AccountGroups', 'ExchangeRates', 'Accounts', 'Categories', 'CommissionTypes', 'Receivables', 'Users', 'GlobalUnits', 'Employees', 'Partners', 'Payroll', 'Finance'],
   endpoints: (build) => ({
     sendWhatsAppAlert: build.mutation({
       query: (body) => ({
@@ -47,7 +47,21 @@ export const api = createApi({
         body,
       }),
     }),
+    searchParties: build.query({
+      query: (q) => `reports/search-parties/?q=${encodeURIComponent(q)}`,
+    }),
+    getAccounts: build.query({
+      query: (q) => `finance/accounts/?search=${encodeURIComponent(q || '')}`,
+    }),
+    searchCatalog: build.query({
+      query: (q) => `inventory/items/?search=${encodeURIComponent(q || '')}`,
+    }),
   }),
 });
 
-export const { useSendWhatsAppAlertMutation } = api as any;
+export const { 
+  useSendWhatsAppAlertMutation, 
+  useLazySearchPartiesQuery, 
+  useLazyGetAccountsQuery,
+  useLazySearchCatalogQuery
+} = api as any;

@@ -18,11 +18,9 @@ from sales.views import SaleViewSet, ContainerTransactionViewSet
 # Finance
 from finance.views import (
     SettlementViewSet, ExpenseViewSet, CashTransactionViewSet,
-    AccountGroupViewSet, AccountViewSet, PartnerViewSet
+    AccountGroupViewSet, AccountViewSet, PartnerViewSet, JournalVoucherViewSet
 )
 # Market
-from market.views import DailyMovementViewSet
-# Modules 3-7
 from market.extra_views import (
     ItemUnitViewSet, SalesOrderViewSet, PurchaseOrderViewSet,
     SaleReturnViewSet, PurchaseReturnViewSet,
@@ -30,7 +28,7 @@ from market.extra_views import (
     AdvancedCheckViewSet,
 )
 # Reports
-from reports.views import DashboardView, SalesReportView, AgingReportView, UnifiedStatementView, ReceivablesPayablesView, SalesInvoicesListView
+from reports.views import DashboardView, SalesReportView, AgingReportView, UnifiedStatementView, ReceivablesPayablesView, SalesInvoicesListView, SearchPartiesView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 router = DefaultRouter()
@@ -68,14 +66,12 @@ router.register(r'finance/cash', CashTransactionViewSet, basename='cash_transact
 router.register(r'account-groups', AccountGroupViewSet, basename='account_group')
 router.register(r'accounts', AccountViewSet, basename='account')
 router.register(r'partners', PartnerViewSet, basename='partner')
+router.register(r'journal-vouchers', JournalVoucherViewSet, basename='journal_voucher')
 # Module 6 — HR & Payroll
 router.register(r'employees', EmployeeViewSet, basename='employee')
 router.register(r'payroll-runs', PayrollRunViewSet, basename='payroll_run')
 # Module 7 — Advanced Checks
 router.register(r'checks', AdvancedCheckViewSet, basename='check')
-# Market
-router.register(r'market/movements', DailyMovementViewSet, basename='market_movement')
-
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -91,11 +87,15 @@ urlpatterns = [
     path('api/reports/sales/', SalesReportView.as_view(), name='reports_sales'),
     path('api/reports/aging/', AgingReportView.as_view(), name='reports_aging'),
     path('api/reports/unified-statement/', UnifiedStatementView.as_view(), name='unified_statement'),
+    path('api/reports/search-parties/', SearchPartiesView.as_view(), name='search_parties'),
     path('api/reports/receivables/', ReceivablesPayablesView.as_view(), name='receivables_payables'),
     path('api/reports/invoices/', SalesInvoicesListView.as_view(), name='invoices_report'),
 
     # API
     path('api/', include(router.urls)),
+
+    path('api/market/', include('market.urls')),
+
     path('api/integrations/', include('integrations.urls')),
     
     # Super Admin Dashboard Endpoints

@@ -14,6 +14,7 @@ import SuperAdminDashboard from '../pages/superadmin/SuperAdminDashboard';
 import CustomersList from '../pages/suppliers/Customers';
 import CurrenciesPage from '../pages/settings/Currencies';
 import DailyMovements from '../pages/market/DailyMovements';
+import SimpleDailyMovements from '../pages/market/SimpleDailyMovements';
 import CustomerBalanceReport from '../pages/reports/CustomerBalanceReport';
 import UnifiedStatementReport from '../pages/reports/UnifiedStatementReport';
 import SupplierStatement from '../pages/suppliers/SupplierStatement';
@@ -28,8 +29,7 @@ import SalesInvoicesPage from '../pages/finance/SalesInvoicesPage';
 import ControlPanel from '../pages/settings/ControlPanel';
 import PartnersPage from '../pages/finance/PartnersPage';
 import AuditLogPage from '../pages/reports/AuditLog';
-
-
+import JournalVoucherPage from '../pages/finance/JournalVoucherPage';
 export const router = createBrowserRouter([
   {
     path: '/login',
@@ -50,6 +50,10 @@ export const router = createBrowserRouter([
       {
         path: 'market/floor',
         element: <DailyMovements />,
+      },
+      {
+        path: 'market/transcription',
+        element: <SimpleDailyMovements />,
       },
       {
         path: 'suppliers',
@@ -126,6 +130,10 @@ export const router = createBrowserRouter([
       {
         path: 'finance/chart-of-accounts',
         element: <ChartOfAccounts />,
+      },
+      {
+        path: 'finance/journal-voucher',
+        element: <JournalVoucherPage />,
       },
       {
         path: 'reports/receivables',

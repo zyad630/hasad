@@ -239,9 +239,9 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
                         target_type = acc.group.account_type
                         target_uuid = acc.id
                         target_name = acc.name
-                    except:
-                        # Try searching by name in partners/customers/suppliers if it's not a direct account
-                        # (Usually account_id in the frontend will be the code or UUID)
+                    except (Account.DoesNotExist, ValueError, TypeError):
+                        # Account not found by UUID/code — fall back to tenant-level general account.
+                        # This is intentional for legacy voucher entries that reference general ledger names.
                         pass
 
                     # 2. Determine DR/CR based on tx_type
@@ -280,8 +280,8 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
                         request=request,
                         notes=f'سند {prefix}: {description} بقيمة إجمالية (طالع القيود)'
                     )
-                except:
-                    pass
+                except Exception:
+                    pass  # Audit logging failure — non-critical
 
                 return Response({'message': 'تم حفظ السند وترحيله بنجاح', 'voucher_number': voucher_num}, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -311,3 +311,48 @@ class CashTransactionViewSet(viewsets.ModelViewSet):
             'id', 'check_number', 'bank_name', 'foreign_amount', 'due_date', 'currency_code'
         )
         return Response({'checks': list(checks)})
+
+
+from .models import JournalVoucher
+from .serializers import JournalVoucherSerializer
+
+class JournalVoucherViewSet(viewsets.ModelViewSet):
+    serializer_class = JournalVoucherSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
+    search_fields = ['description', 'dr_account_name', 'cr_account_name']
+    ordering_fields = ['voucher_date', 'amount']
+    
+    def get_queryset(self):
+        return JournalVoucher.objects.filter(tenant=self.request.tenant)
+
+    def create(self, request, *args, **kwargs):
+        from .services import LedgerService
+        from django.db import transaction
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        with transaction.atomic():
+            voucher = serializer.save(tenant=request.tenant, created_by=request.user)
+            try:
+                LedgerService.record_journal_voucher(voucher, user=request.user)
+            except Exception as e:
+                transaction.set_rollback(True)
+                return Response({'error': f'تعذر ترحيل القيد: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+                
+            try:
+                from core.audit import log as audit_log
+                audit_log(
+                    tenant=request.tenant, user=request.user,
+                    action='journal_voucher_created',
+                    entity_type='JournalVoucher', entity_id=voucher.id,
+                    after={'amount': str(voucher.amount), 'dr': voucher.dr_account_name, 'cr': voucher.cr_account_name},
+                    request=request,
+                    notes=f'مستند قيد رقم {voucher.id} بـ {voucher.amount}'
+                )
+            except Exception:
+                pass  # Audit logging is non-critical and must never roll back the financial transaction
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+

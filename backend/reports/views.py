@@ -158,8 +158,8 @@ class SalesReportView(APIView):
     def get(self, request):
         if request.tenant is None:
             return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء تقرير المبيعات بدون Tenant.'}, status=400)
-        date_from = request.query_params.get('from')
-        date_to   = request.query_params.get('to')
+        date_from = request.query_params.get('from') or request.query_params.get('from_date')
+        date_to   = request.query_params.get('to') or request.query_params.get('to_date')
 
         if not date_from or not date_to:
             return Response({'error': 'from و to مطلوبان (YYYY-MM-DD)'}, status=400)
@@ -211,35 +211,52 @@ class AgingReportView(APIView):
 
         from finance.models import LedgerEntry
         from core.models import Currency
+        from django.db.models import Sum, Case, When, DecimalField, Value
+        from decimal import Decimal
 
         customers_qs = Customer.objects.filter(tenant=request.tenant, is_active=True).values(
             'id', 'name', 'phone', 'credit_limit', 'customer_type'
         )
-        customers = list(customers_qs)
+        customers_map = {str(c['id']): c for c in customers_qs}
 
-        currencies = list(Currency.objects.filter(tenant=request.tenant).values('code', 'symbol', 'name'))
+        currencies = {c['code']: c for c in Currency.objects.filter(tenant=request.tenant).values('code', 'symbol', 'name')}
+
+        ledger_bals = LedgerEntry.objects.filter(
+            tenant=request.tenant,
+            account_type='customer'
+        ).values('account_id', 'currency_code').annotate(
+            dr=Sum(Case(When(entry_type='DR', then='foreign_amount'), default=Value(0), output_field=DecimalField())),
+            cr=Sum(Case(When(entry_type='CR', then='foreign_amount'), default=Value(0), output_field=DecimalField()))
+        )
 
         results = []
-        for c in customers:
-            for cur in currencies:
-                bal = LedgerEntry.get_balance(
-                    tenant=request.tenant,
-                    account_type='customer',
-                    account_id=c['id'],
-                    currency_code=cur['code'],
-                )
-                if float(bal) > 0:
-                    results.append({
-                        'customer_id': str(c['id']),
-                        'name': c['name'],
-                        'phone': c.get('phone'),
-                        'customer_type': c.get('customer_type'),
-                        'credit_limit': str(c.get('credit_limit') or '0.00'),
-                        'currency_code': cur['code'],
-                        'currency_symbol': cur['symbol'],
-                        'currency_name': cur['name'],
-                        'credit_balance': str(bal),
-                    })
+        for lb in ledger_bals:
+            acct_id = str(lb['account_id'])
+            if acct_id not in customers_map:
+                continue
+            
+            # For customers, positive balance is DR - CR (They owe us)
+            dr_amt = lb['dr'] or Decimal('0')
+            cr_amt = lb['cr'] or Decimal('0')
+            bal = dr_amt - cr_amt
+            
+            if bal > 0:
+                c = customers_map[acct_id]
+                cur = currencies.get(lb['currency_code'])
+                if not cur:
+                    continue
+                    
+                results.append({
+                    'customer_id': acct_id,
+                    'name': c['name'],
+                    'phone': c.get('phone'),
+                    'customer_type': c.get('customer_type'),
+                    'credit_limit': str(c.get('credit_limit') or '0.00'),
+                    'currency_code': cur['code'],
+                    'currency_symbol': cur['symbol'],
+                    'currency_name': cur['name'],
+                    'credit_balance': str(bal),
+                })
 
         results.sort(key=lambda x: float(x['credit_balance']), reverse=True)
         _cache_set(cache_key, results, timeout=300)
@@ -281,90 +298,250 @@ class SupplierSettlementSummaryView(APIView):
         cache.set(cache_key, data, timeout=900)
         return Response(data)
 
-class UnifiedStatementView(APIView):
+class SearchPartiesView(APIView):
     """
-    Returns a unified dual-currency statement of account for a customer or supplier.
-    Outputs chronological ledger entries with foreign_amount, base_amount, and exchange_rate.
-    Supports date range filtering with opening balance.
+    Unified search across all parties (Farmers, Customers, Merchants, Employees, Partners)
+    GET /api/reports/search-parties/?q=xyz
+    Returns list of: {id, name, type, phone, type_label}
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         if request.tenant is None:
-            return Response({'detail': 'Tenant غير محدد. لا يمكن إنشاء كشف حساب بدون Tenant.'}, status=400)
-        target_type = request.query_params.get('type')  # 'customer' or 'supplier'
-        target_id = request.query_params.get('id')
-        date_from = request.query_params.get('from')
-        date_to   = request.query_params.get('to')
+            return Response({'detail': 'Tenant غير محدد.'}, status=400)
+            
+        q = request.query_params.get('q', '').strip()
+        
+        from suppliers.models import Customer, Supplier
+        from finance.models import Partner
+        from hr.models import Employee
+
+        results = []
+
+        def get_variations(text):
+            if not text: return []
+            variants = [text]
+            # Alef variations
+            v2 = text.replace('ا', 'أ').replace('ا', 'إ').replace('ا', 'آ')
+            if v2 != text: variants.append(v2)
+            # Yaa variations
+            v3 = text.replace('ي', 'ى').replace('ى', 'ي')
+            if v3 != text: variants.append(v3)
+            # Taa Marbuta
+            v4 = text.replace('ة', 'ه').replace('ه', 'ة')
+            if v4 != text: variants.append(v4)
+            return list(set(variants))
+
+        def search_model(model_class, label, type_name, q_filter=None):
+            try:
+                qs = model_class.objects.filter(tenant=request.tenant)
+                if hasattr(model_class, 'is_active'):
+                    qs = qs.filter(is_active=True)
+                
+                if q:
+                    variants = get_variations(q)
+                    query = Q()
+                    for v in variants:
+                        query |= Q(name__icontains=v)
+                    if hasattr(model_class, 'phone'):
+                        query |= Q(phone__icontains=q)
+                    qs = qs.filter(query)
+                
+                return [
+                    {
+                        'id': str(obj.id),
+                        'name': obj.name,
+                        'phone': getattr(obj, 'phone', '') or '',
+                        'type': type_name,
+                        'type_label': label,
+                        'commission_type': getattr(obj, 'commission_type', 'percent'),
+                        'commission_rate': str(getattr(obj, 'commission_rate', '10'))
+                    }
+                    for obj in qs[:40]
+                ]
+            except Exception:
+                return []
+
+        # 1. Suppliers
+        results.extend(search_model(Supplier, 'مورد / مزارع', 'supplier'))
+        # 2. Customers
+        results.extend(search_model(Customer, 'زبون / تاجر', 'customer'))
+        # 3. Employees
+        results.extend(search_model(Employee, 'موظف', 'employee'))
+        # 4. Partners
+        results.extend(search_model(Partner, 'شريك / مساهم', 'partner'))
+
+        return Response({'results': results})
+
+class UnifiedStatementView(APIView):
+    """
+    Unified Account Statement — pulls from LedgerEntry (central source of truth)
+    PLUS: For suppliers (farmers), it pulls unsettled sales detail to show real-time movements.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.tenant is None:
+            return Response({'detail': 'Tenant غير محدد.'}, status=400)
+            
+        target_type = request.query_params.get('party_type') or request.query_params.get('type')
+        target_id   = request.query_params.get('party_id') or request.query_params.get('id')
+        date_from   = request.query_params.get('from') # YYYY-MM-DD
+        date_to     = request.query_params.get('to')   # YYYY-MM-DD
 
         if not target_type or not target_id:
-            return Response({'error': 'type and id are required'}, status=400)
+            return Response({'error': 'type and id are required.'}, status=400)
 
         from finance.models import LedgerEntry
         from django.db.models import Sum
 
-        # 1. Calculate Opening Balance before date_from
+        results = []
         opening_balance_base = Decimal('0.000')
-        if date_from:
-            pre_entries = LedgerEntry.objects.filter(
-                tenant=request.tenant,
-                account_type=target_type,
-                account_id=target_id,
-                entry_date__date__lt=date_from
-            )
-            pre_dr = pre_entries.filter(entry_type='DR').aggregate(s=Sum('base_amount'))['s'] or Decimal('0')
-            pre_cr = pre_entries.filter(entry_type='CR').aggregate(s=Sum('base_amount'))['s'] or Decimal('0')
-            
-            if target_type == 'customer':
-                opening_balance_base = pre_dr - pre_cr
-            else:
-                opening_balance_base = pre_cr - pre_dr
 
-        # 2. Get entries within range (or all if no range)
-        qs = LedgerEntry.objects.filter(
+        # 1. Historical Ledger Entries (Official Accounting)
+        ledger_qs = LedgerEntry.objects.filter(
             tenant=request.tenant,
             account_type=target_type,
             account_id=target_id
         )
+
         if date_from:
-            qs = qs.filter(entry_date__date__gte=date_from)
-        if date_to:
-            qs = qs.filter(entry_date__date__lte=date_to)
-        
-        entries = qs.order_by('entry_date', 'id')
-
-        statement = []
-        running_base = opening_balance_base
-
-        for e in entries:
-            dr = e.base_amount if e.entry_type == 'DR' else Decimal('0')
-            cr = e.base_amount if e.entry_type == 'CR' else Decimal('0')
+            pre_ledger = ledger_qs.filter(entry_date__date__lt=date_from)
+            pre_dr = pre_ledger.filter(entry_type='DR').aggregate(s=Sum('base_amount'))['s'] or Decimal('0')
+            pre_cr = pre_ledger.filter(entry_type='CR').aggregate(s=Sum('base_amount'))['s'] or Decimal('0')
             
             if target_type == 'customer':
-                running_base += (dr - cr)
+                opening_balance_base = pre_dr - pre_cr
             else:
-                running_base += (cr - dr)
+                # For suppliers, partners, employees: CR (Owe them) - DR (Paid them)
+                opening_balance_base = pre_cr - pre_dr
+            
+            ledger_qs = ledger_qs.filter(entry_date__date__gte=date_from)
 
-            statement.append({
-                'id': str(e.id),
-                'date': e.entry_date.strftime('%Y-%m-%d %H:%M'),
-                'description': e.description,
-                'reference_type': e.reference_type,
-                'reference_id': str(e.reference_id),
-                'currency_code': e.currency_code,
-                'exchange_rate': str(e.exchange_rate),
-                'foreign_amount': str(e.foreign_amount),
-                'base_amount': str(e.base_amount),
-                'entry_type': e.entry_type,
-                'running_balance_base': str(running_base.quantize(Decimal('0.001'))),
+        if date_to:
+            ledger_qs = ledger_qs.filter(entry_date__date__lte=date_to)
+
+        for e in ledger_qs.order_by('entry_date', 'id'):
+            dr = float(e.base_amount) if e.entry_type == 'DR' else 0.0
+            cr = float(e.base_amount) if e.entry_type == 'CR' else 0.0
+            results.append({
+                'date':           e.entry_date,
+                'reference':      f"{e.reference_type} #{str(e.reference_id)[:8]}",
+                'description':    e.description,
+                'dr':             dr,
+                'cr':             cr,
+                'is_realtime':    False
+            })
+
+        # 2. Real-time Unsettled Movements (For Farmers/Suppliers)
+        # Requirement: "Show every operation even if not yet settled"
+        if target_type == 'supplier':
+            from sales.models import SaleItem
+            # Unsettled = Shipment is still open
+            unsettled_sales = SaleItem.objects.filter(
+                shipment_item__shipment__supplier_id=target_id,
+                shipment_item__shipment__status='open',
+                sale__is_cancelled=False,
+                sale__tenant=request.tenant
+            ).select_related('sale', 'shipment_item__item')
+
+            if date_from:
+                unsettled_sales = unsettled_sales.filter(sale__sale_date__date__gte=date_from)
+            if date_to:
+                unsettled_sales = unsettled_sales.filter(sale__sale_date__date__lte=date_to)
+
+            for si in unsettled_sales.order_by('sale__sale_date'):
+                # Net credit for farmer = subtotal - commission
+                comm_amt = si.subtotal * (si.commission_rate / 100)
+                net_credit = si.subtotal - comm_amt
+                results.append({
+                    'date':           si.sale.sale_date,
+                    'reference':      f"بيع محلي #{str(si.sale.id)[:8]}",
+                    'description':    f"بيع {si.quantity} {si.shipment_item.item.name} (صافي بعد عمولة {si.commission_rate}%)",
+                    'dr':             0,
+                    'cr':             float(net_credit),
+                    'is_realtime':    True 
+                })
+
+            # Also pull unsettled expenses related to open shipments (Plastics, Labor, Transport)
+            from inventory.models import ShipmentItem
+            unsettled_shipment_costs = ShipmentItem.objects.filter(
+                shipment__supplier_id=target_id,
+                shipment__status='open',
+                shipment__tenant=request.tenant
+            ).select_related('item', 'shipment')
+
+            if date_from:
+                unsettled_shipment_costs = unsettled_shipment_costs.filter(shipment__shipment_date__gte=date_from)
+            if date_to:
+                unsettled_shipment_costs = unsettled_shipment_costs.filter(shipment__shipment_date__lte=date_to)
+
+            for cost_item in unsettled_shipment_costs.order_by('shipment__shipment_date'):
+                total_cost = float((cost_item.plastic_cost or Decimal('0')) + (cost_item.labor_cost or Decimal('0')) + (cost_item.transport_cost or Decimal('0')))
+                if total_cost > 0:
+                    results.append({
+                        'date':           cost_item.shipment.shipment_date,
+                        'reference':      f"مصاريف إرسالية #{str(cost_item.shipment.id)[:8]}",
+                        'description':    f"مصاريف (بلاستيك/عتالة/نقل) للصنف {cost_item.item.name}",
+                        'dr':             total_cost,
+                        'cr':             0,
+                        'is_realtime':    True 
+                    })
+                    
+            from finance.models import Expense
+            unsettled_expenses = Expense.objects.filter(
+                shipment__supplier_id=target_id,
+                shipment__status='open',
+                tenant=request.tenant
+            ).select_related('shipment', 'category')
+
+            if date_from:
+                unsettled_expenses = unsettled_expenses.filter(expense_date__gte=date_from)
+            if date_to:
+                unsettled_expenses = unsettled_expenses.filter(expense_date__lte=date_to)
+
+            for exp in unsettled_expenses.order_by('expense_date'):
+                if exp.base_amount > 0:
+                    results.append({
+                        'date':           exp.expense_date,
+                        'reference':      f"مصروف عام #{str(exp.id)[:8]}",
+                        'description':    f"مصروف على الإرسالية غير المصفاة: {exp.description or (exp.category.name if exp.category else 'عام')}",
+                        'dr':             float(exp.base_amount),
+                        'cr':             0,
+                        'is_realtime':    True 
+                    })
+
+        # Sort the combined results by date
+        results.sort(key=lambda x: x['date'] if isinstance(x['date'], str) else x['date'].isoformat())
+
+        # 3. Calculate running balance
+        running = float(opening_balance_base)
+        statement_data = []
+        for r in results:
+            if target_type == 'customer':
+                running += (r['dr'] - r['cr'])
+            else:
+                running += (r['cr'] - r['dr'])
+            
+            # Format date for JSON
+            r_date = r['date'] if isinstance(r['date'], str) else r['date'].strftime('%Y-%m-%d %H:%M')
+            
+            statement_data.append({
+                'date':           r_date,
+                'description':    r['description'],
+                'reference':      r['reference'],
+                'dr':             r['dr'],
+                'cr':             r['cr'],
+                'is_realtime':    r['is_realtime'],
+                'balance':        round(running, 3),
             })
 
         return Response({
-            'target_type': target_type,
-            'target_id': target_id,
-            'opening_balance': str(opening_balance_base),
-            'statement': statement,
-            'total_balance_base': str(running_base.quantize(Decimal('0.001'))),
+            'target_type':        target_type,
+            'target_id':          target_id,
+            'opening_balance':    float(opening_balance_base),
+            'statement':          statement_data,
+            'current_balance':    round(running, 3)
         })
 
 
@@ -530,9 +707,9 @@ class SalesInvoicesListView(APIView):
         currency  = request.query_params.get('currency')
 
         if date_from:
-            qs = qs.filter(sale_date__date__gte=date_from)
+            qs = qs.filter(sale_date__gte=f"{date_from} 00:00:00")
         if date_to:
-            qs = qs.filter(sale_date__date__lte=date_to)
+            qs = qs.filter(sale_date__lte=f"{date_to} 23:59:59")
         if customer:
             qs = qs.filter(customer_id=customer)
         if cancelled == 'true':

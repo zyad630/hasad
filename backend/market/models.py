@@ -22,14 +22,23 @@ class DailyMovement(models.Model):
     purchase_price = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="سعر الشراء")
     purchase_total = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="إجمالي الشراء")
     
-    commission_rate = models.DecimalField(max_digits=5, decimal_places=3, default=0, verbose_name="نسبة الكمسيون")
-    commission_amount = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="مبلغ الكمسيون")
+    commission_rate = models.DecimalField(max_digits=5, decimal_places=3, default=0, verbose_name="نسبة عمولة المزارع")
+    commission_amount = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="مبلغ عمولة المزارع")
     
     # Buyer Side (المشتري)
     buyer = models.ForeignKey(Customer, on_delete=models.PROTECT, null=True, blank=True, related_name='purchases', verbose_name="المشتري")
     sale_qty = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="كمية البيع")
     sale_price = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="سعر البيع")
     sale_total = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="إجمالي البيع")
+    
+    buyer_commission_rate = models.DecimalField(max_digits=5, decimal_places=3, default=0, verbose_name="نسبة عمولة الزبون")
+    buyer_commission_amount = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="مبلغ عمولة الزبون")
+    
+    # Extra Fees (رسوم إضافية)
+    loading_fee = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="رسوم تحميل")
+    unloading_fee = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="رسوم تنزيل")
+    floor_fee = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="رسوم أرضية")
+    delivery_fee = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="رسوم توصيل")
     
     box_price = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="ثمن كرتون")
     
@@ -56,9 +65,17 @@ class DailyMovement(models.Model):
         # Recalculate totals
         self.purchase_total = self.net_weight * Decimal(str(self.purchase_price))
         self.commission_amount = self.purchase_total * (Decimal(str(self.commission_rate)) / 100)
-        self.sale_total = (self.sale_qty * Decimal(str(self.sale_price))) + (self.count * Decimal(str(self.box_price)))
+        
+        # Sale total = (qty * price) + (boxes * box_price)
+        base_sale = (self.sale_qty * Decimal(str(self.sale_price))) + (self.count * Decimal(str(self.box_price)))
+        self.buyer_commission_amount = base_sale * (Decimal(str(self.buyer_commission_rate)) / 100)
+        
+        # Total Sale includes buyer commission and delivery/loading if applicable (usually added to invoice)
+        # But for simplicity, we'll keep sale_total as the gross amount.
+        self.sale_total = base_sale + self.buyer_commission_amount + self.delivery_fee + self.loading_fee
         
         super().save(*args, **kwargs)
+
 
     class Meta:
         ordering = ['-tx_date', 'daily_seq']

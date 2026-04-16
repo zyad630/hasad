@@ -57,10 +57,18 @@ class SaleItem(models.Model):
     quantity       = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الكمية المباعة")
     unit_price     = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="سعر الوحدة")
     subtotal       = models.DecimalField(max_digits=12, decimal_places=3, verbose_name="الإجمالي الفرعي")
-    commission_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="نسبة العمولة (%)")
+    commission_rate = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="عمولة المزارع (%)")
+    buyer_commission_rate = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="عمولة المشتري (%)")
     discount       = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="خصم الصنف")
     gross_weight   = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="الوزن القائم")
     net_weight     = models.DecimalField(max_digits=12, decimal_places=3, default=0, verbose_name="الوزن الصافي")
+    
+    # Extra Fees (Requirement: Professional market floor tracking)
+    loading_fee    = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="رسوم تحميل")
+    unloading_fee  = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="رسوم تنزيل")
+    floor_fee      = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="رسوم أرضية")
+    delivery_fee   = models.DecimalField(max_digits=10, decimal_places=3, default=0, verbose_name="رسوم توصيل")
+
     containers_out = models.IntegerField(default=0, verbose_name="الفوارغ الصادرة")
 
     class Meta:

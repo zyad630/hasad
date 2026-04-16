@@ -331,3 +331,30 @@ class Partner(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.share_percentage}%)"
+
+class JournalVoucher(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    voucher_date = models.DateField(auto_now_add=True, verbose_name="تاريخ المستند")
+    currency_code = models.CharField(max_length=10, default='ILS', verbose_name="العملة")
+    exchange_rate = models.DecimalField(max_digits=18, decimal_places=6, default=1, verbose_name="سعر الصرف")
+    amount = models.DecimalField(max_digits=18, decimal_places=3, verbose_name="المبلغ")
+    base_amount = models.DecimalField(max_digits=18, decimal_places=3, verbose_name="المبلغ (بالأساس)")
+    description = models.TextField(blank=True, null=True, verbose_name="البيان")
+
+    dr_account_type = models.CharField(max_length=50, verbose_name="نوع حساب المدين")
+    dr_account_id = models.UUIDField(verbose_name="معرف حساب المدين")
+    dr_account_name = models.CharField(max_length=150, null=True, blank=True, verbose_name="اسم حساب المدين")
+
+    cr_account_type = models.CharField(max_length=50, verbose_name="نوع حساب الدائن")
+    cr_account_id = models.UUIDField(verbose_name="معرف حساب الدائن")
+    cr_account_name = models.CharField(max_length=150, null=True, blank=True, verbose_name="اسم حساب الدائن")
+
+    created_by = models.ForeignKey('core.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="بواسطة")
+
+    class Meta:
+        verbose_name = 'مستند قيد'
+        verbose_name_plural = 'مستندات القيد'
+
+    def __str__(self):
+        return f"قيد #{self.id} - {self.amount} {self.currency_code}"

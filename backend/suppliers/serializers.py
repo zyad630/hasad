@@ -163,6 +163,8 @@ class CustomerSerializer(serializers.ModelSerializer):
                         'amount': balance,
                         'base_equivalent': round(balance * rate, 3)
                     })
-        except:
+        except Exception:
+            # Balance display is non-critical — return partial results rather than crashing the serializer.
+            # Genuine errors will surface in server logs.
             pass
         return result

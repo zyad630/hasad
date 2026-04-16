@@ -28,7 +28,7 @@ export default function SupplierStatement() {
 
   const handleSendWhatsApp = async () => {
     setIsSendingWA(true);
-    const text = `كشف حساب المزارع: ${statement?.supplier_name}\nالتاريخ: ${new Date().toLocaleDateString('en-US')}\n\nالأرصدة الحالية:\n${statement?.current_balances?.map((b: any) => `${b.amount} ${b.currency_symbol}`).join('\n')}`;
+    const text = `كشف حساب المزارع: ${statement?.supplier_name}\nالتاريخ: ${new Date().toLocaleDateString('en-GB')}\n\nالأرصدة الحالية:\n${statement?.current_balances?.map((b: any) => `${b.amount} ${b.currency_symbol}`).join('\n')}`;
     
     try {
         await sendWhatsAppAlert({ phone: statement?.supplier_phone || '', text }).unwrap();
@@ -146,7 +146,7 @@ export default function SupplierStatement() {
             </div>
             <div className="text-left">
                <h2 className="text-2xl font-black">كشف حساب مزارع</h2>
-               <p className="text-sm font-bold text-zinc-400">{new Date().toLocaleDateString('en-US')}</p>
+               <p className="text-sm font-bold text-zinc-400">{new Date().toLocaleDateString('en-GB')}</p>
             </div>
          </div>
          

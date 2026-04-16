@@ -154,8 +154,9 @@ class SaleViewSet(viewsets.ModelViewSet):
             comm_rate  = Decimal(str(item_data.get('commission_rate', 0)))
             disc       = Decimal(str(item_data.get('discount', 0)))
 
-            if qty > shipment_item.remaining_qty:
-                return Response({'error': f'المتوفر من {shipment_item.item.name}: {shipment_item.remaining_qty}'}, status=400)
+            # We allow sales even if quantity > remaining_qty (Short Selling)
+            # if qty > shipment_item.remaining_qty:
+            #     return Response({'error': f'المتوفر من {shipment_item.item.name}: {shipment_item.remaining_qty}'}, status=400)
 
             subtotal = (qty * unit_price).quantize(Decimal('0.001'))
             total_subtotal   += subtotal

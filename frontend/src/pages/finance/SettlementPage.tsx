@@ -4,6 +4,7 @@ import { api } from '../../api/baseApi';
 import { useGetShipmentsQuery } from '../shipments/Shipments';
 import { TableSkeleton } from '../../components/Skeleton';
 import { useGetCurrenciesQuery } from '../settings/Currencies';
+import { formatDateDisplay } from '../../utils/dateUtils';
 
 const settlementApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -96,7 +97,7 @@ export default function SettlementPage() {
                   <option value="" disabled>-- إرساليات قيد التشغيل (مفتوحة) --</option>
                   {openShipments.map((s: any) => (
                     <option key={s.id} value={s.id}>
-                      #{s.id.substring(0,8)} | المزارع: {s.supplier_name} - بتاريخ {s.shipment_date}
+                      #{s.id.substring(0,8)} | المزارع: {s.supplier_name} - بتاريخ {formatDateDisplay(s.shipment_date)}
                     </option>
                   ))}
                 </select>
@@ -146,7 +147,7 @@ export default function SettlementPage() {
                   <tbody className="divide-y divide-surface-container-high/50">
                     {settlements.map((s: any) => (
                       <tr key={s.id} className="hover:bg-emerald-50/20 transition-colors group">
-                        <td className="px-6 py-5 font-code text-sm text-zinc-500" dir="ltr">{new Date(s.settled_at).toLocaleDateString('en-US')}</td>
+                        <td className="px-6 py-5 font-code text-sm text-zinc-500" dir="ltr">{new Date(s.settled_at).toLocaleDateString('en-GB')}</td>
                         <td className="px-6 py-5 font-bold text-emerald-900">{s.supplier_name}</td>
                         <td className="px-6 py-5 font-bold">{parseFloat(s.total_sales).toLocaleString()} <span className="text-xs font-bold">{s.currency_code === 'ILS' ? '₪' : s.currency_code}</span></td>
                         <td className="px-6 py-5 font-black text-secondary">{parseFloat(s.net_supplier).toLocaleString()} <span className="text-xs font-bold">{s.currency_code === 'ILS' ? '₪' : s.currency_code}</span></td>
@@ -167,7 +168,6 @@ export default function SettlementPage() {
               </div>
             </div>
             
-            {/* Visual spacer to hold ground if calculator is empty */}
             {!previewData && (
               <div className="bg-zinc-50 border-2 border-dashed border-zinc-200 p-12 rounded-3xl flex flex-col items-center justify-center opacity-75">
                  <span className="material-symbols-outlined text-zinc-300 text-6xl mb-4">point_of_sale</span>

@@ -1,4 +1,4 @@
-﻿import { useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
 
 const Header = () => {
@@ -19,7 +19,7 @@ const Header = () => {
           <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400">search</span>
           <input 
             className="bg-surface-container-low border-0 rounded-full pe-10 ps-4 py-2 focus:ring-2 focus:ring-primary w-64 text-sm outline-none transition-shadow" 
-            placeholder="بحث سريع للموردين والأصناف..." 
+            placeholder="بحث سريع للمزارعين والأصناف..." 
             type="text"
           />
         </div>

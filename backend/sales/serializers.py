@@ -11,7 +11,8 @@ class SaleItemSerializer(serializers.ModelSerializer):
         model = SaleItem
         fields = [
             'id', 'shipment_item', 'item_name', 'quantity', 'unit_price', 'subtotal', 
-            'containers_out', 'commission_rate', 'discount', 'gross_weight', 'net_weight'
+            'containers_out', 'commission_rate', 'discount', 'gross_weight', 'net_weight',
+            'loading_fee', 'unloading_fee', 'floor_fee', 'delivery_fee'
         ]
         read_only_fields = ['id', 'subtotal']
 
@@ -29,12 +30,8 @@ class SaleSerializer(CurrencySerializerMixin, serializers.ModelSerializer):
         read_only_fields = ['id', 'foreign_amount', 'base_amount']
 
     def validate(self, data):
-        for item_data in data.get('items', []):
-            shipment_item = item_data['shipment_item']
-            if item_data['quantity'] > shipment_item.remaining_qty:
-                raise serializers.ValidationError(
-                    f"الكمية المطلوبة ({item_data['quantity']}) أكبر من الكمية المتبقية ({shipment_item.remaining_qty}) للصنف {shipment_item.item.name}"
-                )
+        # We allow sales even if quantity > remaining_qty (Short Selling)
+        # as requested by the user to avoid operational blockers.
         return data
 
     def create(self, validated_data):

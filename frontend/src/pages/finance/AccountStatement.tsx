@@ -1,215 +1,269 @@
-import React, { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../../api/baseApi';
+import { TableSkeleton } from '../../components/Skeleton';
+import { useToast } from '../../components/ui/Toast';
 import { SmartSearch } from '../../components/ui/SmartSearch';
 
-const stmtApi = api.injectEndpoints({
+const statementApi = api.injectEndpoints({
   endpoints: (build) => ({
-    getSuppliers: build.query({ query: (s?: string) => `suppliers/${s ? `?search=${s}` : ''}`, }),
-    getCustomers: build.query({ query: (s?: string) => `customers/${s ? `?search=${s}` : ''}`, }),
-    getPartners: build.query({ query: (s?: string) => `partners/${s ? `?search=${s}` : ''}`, }),
-    getSupplierStatement: build.query({
-      query: ({ id, from, to }: any) => `suppliers/${id}/account-statement/${from && to ? `?from=${from}&to=${to}` : ''}`,
+    getUnifiedStatement: build.query({
+      query: ({ type, id, from, to }) => {
+          let url = `reports/unified-statement/?type=${type}&id=${id}`;
+          if (from) url += `&from=${from}`;
+          if (to) url += `&to=${to}`;
+          return url;
+      },
+      providesTags: ['Finance'],
     }),
-    getCustomerStatement: build.query({
-      query: ({ id, from, to }: any) => `customers/${id}/account-statement/${from && to ? `?from=${from}&to=${to}` : ''}`,
-    }),
-    getPartnerStatement: build.query({
-      query: ({ id, from, to }: any) => `partners/${id}/account-statement/${from && to ? `?from=${from}&to=${to}` : ''}`,
+    searchParties: build.query({
+      query: (q) => `reports/search-parties/?q=${encodeURIComponent(q)}`,
     }),
   }),
+  overrideExisting: true,
 });
 
-export const {
-  useGetSuppliersQuery, useGetCustomersQuery, useGetPartnersQuery,
-  useGetSupplierStatementQuery, useGetCustomerStatementQuery, useGetPartnerStatementQuery,
-} = stmtApi;
-
-type PartyType = 'supplier' | 'customer' | 'partner';
-
-function fmt(n: number) {
-  return n?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00';
-}
+export const { useGetUnifiedStatementQuery, useSearchPartiesQuery } = statementApi;
 
 export default function AccountStatement() {
-  const [partyType, setPartyType] = useState<PartyType>('supplier');
-  const [selectedParty, setSelectedParty] = useState<any>(null);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const { showToast } = useToast();
+  const [targetType, setTargetType] = useState('');
+  const [targetId, setTargetId] = useState('');
+  const [targetName, setTargetName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  const today = new Date().toISOString().split('T')[0];
+  const monthStart = today.slice(0, 8) + '01';
+  const [dateFrom, setDateFrom] = useState(monthStart);
+  const [dateTo, setDateTo] = useState(today);
 
-  const { data: suppliersRaw } = useGetSuppliersQuery('');
-  const { data: customersRaw } = useGetCustomersQuery('');
-  const { data: partnersRaw } = useGetPartnersQuery('');
+  // RTK Query hook for search (manual trigger via SmartSearch)
+  const [triggerSearch] = statementApi.useLazySearchPartiesQuery();
 
-  const suppliers = suppliersRaw?.results || (Array.isArray(suppliersRaw) ? suppliersRaw : []);
-  const customers = customersRaw?.results || (Array.isArray(customersRaw) ? customersRaw : []);
-  const partners = partnersRaw?.results || (Array.isArray(partnersRaw) ? partnersRaw : []);
+  const { data: report, isLoading, isFetching, isError, error, refetch } = useGetUnifiedStatementQuery(
+     { type: targetType, id: targetId, from: dateFrom, to: dateTo }, 
+     { skip: !targetId }
+  );
 
-  React.useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get('q');
-    const type = new URLSearchParams(window.location.search).get('type');
-    const id = new URLSearchParams(window.location.search).get('id');
+  const statement = report?.statement || [];
+  const openingBalance = parseFloat(report?.opening_balance || 0);
 
-    if (type && id) {
-        setPartyType(type as PartyType);
-        const list = type === 'supplier' ? suppliers : type === 'customer' ? customers : partners;
-        const match = list.find((p: any) => p.id === id);
-        if (match) setSelectedParty(match);
-    } else if (q) {
-      const all = [...suppliers, ...customers, ...partners];
-      const match = all.find(p => p.name?.includes(q) || p.phone?.includes(q));
-      if (match) {
-        if (suppliers.find((s:any) => s.id === match.id)) setPartyType('supplier');
-        else if (customers.find((s:any) => s.id === match.id)) setPartyType('customer');
-        else setPartyType('partner');
-        setSelectedParty(match);
-      }
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    if (!statement.length) {
+       showToast('لا توجد بيانات لتصديرها', 'warning');
+       return;
     }
-  }, [suppliersRaw, customersRaw, partnersRaw]);
-
-  const { data: supplierStmt, isFetching: sfetching } = useGetSupplierStatementQuery(
-    { id: selectedParty?.id, from: dateFrom, to: dateTo },
-    { skip: !selectedParty || partyType !== 'supplier' }
-  );
-  const { data: customerStmt, isFetching: cfetching } = useGetCustomerStatementQuery(
-    { id: selectedParty?.id, from: dateFrom, to: dateTo },
-    { skip: !selectedParty || partyType !== 'customer' }
-  );
-  const { data: partnerStmt, isFetching: pfetching } = useGetPartnerStatementQuery(
-    { id: selectedParty?.id, from: dateFrom, to: dateTo },
-    { skip: !selectedParty || partyType !== 'partner' }
-  );
-
-  const stmt = partyType === 'supplier' ? supplierStmt : partyType === 'customer' ? customerStmt : partnerStmt;
-  const isFetching = sfetching || cfetching || pfetching;
-  const entries = stmt?.entries || [];
-
-  const handleWhatsApp = () => {
-    if (!selectedParty || !stmt) return;
-    const phone = selectedParty.whatsapp_number || selectedParty.phone || '';
-    const balance = stmt.current_balance || 0;
-    const msg = encodeURIComponent(
-      `كشف حساب - ${selectedParty.name}\n` +
-      `الفترة: ${dateFrom || 'البداية'} إلى ${dateTo || 'اليوم'}\n` +
-      `إجمالي الرصيد: ${fmt(balance)}\n` +
-      `عدد الحركات: ${entries.length}`
-    );
-    const whatsappUrl = phone
-      ? `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${msg}`
-      : `https://wa.me/?text=${msg}`;
-    window.open(whatsappUrl, '_blank');
+    const headers = ["التاريخ", "البيان", "المرجع", "مدين (له)", "دائن (عليه)", "رصيد تراكمي (شيكل)"];
+    const rows = statement.map((r: any) => [
+      r.date,
+      r.description,
+      r.reference,
+      r.dr,
+      r.cr,
+      r.balance
+    ]);
+    
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+      + headers.join(",") + "\n"
+      + rows.map((e: any[]) => e.join(",")).join("\n");
+      
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `statement_${targetType}_${targetId.substring(0,6)}.csv`);
+    document.body.appendChild(link);
+    link.click();
   };
 
   return (
-    <div dir="rtl" className="animate-fade-in pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+    <div className="space-y-8 animate-fade-in pb-20 no-print" dir="rtl">
+      {/* Header */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h2 className="text-3xl font-black text-on-surface">كشوف الحسابات الموحدة</h2>
-          <p className="text-zinc-500 font-bold mt-1">عرض تفصيلي لكل الحركات المالية للشركاء، المزارعين، والتجار.</p>
+          <h2 className="text-3xl font-black text-on-surface flex items-center gap-3">
+             <span className="material-symbols-outlined text-4xl text-purple-600">receipt_long</span>
+             كشوف الحسابات الموحدة
+          </h2>
+          <p className="text-zinc-500 font-bold mt-1">يُظهر جميع الحركات مسعرة بالعملة الأساسية (شيكل). اختر أي شخص للبدء.</p>
         </div>
-        {selectedParty && (
-            <button
-              onClick={handleWhatsApp}
-              className="px-8 py-3 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex items-center gap-2"
-            >
-              📱 إرسال واتساب
-            </button>
-        )}
+        <div className="flex gap-3">
+           <button onClick={handlePrint} className="bg-white border-2 border-zinc-100 flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm hover:bg-zinc-50 transition-all shadow-sm">
+              <span className="material-symbols-outlined">print</span>
+              طباعة كشف
+           </button>
+           <button onClick={handleExportExcel} className="bg-emerald-600 text-white flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-emerald-600/20">
+              <span className="material-symbols-outlined">description</span>
+              تصدير إكسيل
+           </button>
+        </div>
+      </header>
+
+      {/* Unified Search Input using SmartSearch */}
+      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+         <div className="md:col-span-2 relative">
+            <label className="block text-sm font-black text-zinc-500 mb-2">البحث الشامل (اسم أو رقم، يشمل المزارعين والتجار والجميع)</label>
+            <SmartSearch 
+                placeholder="ابدأ بكتابة اسم الشخص (مزارع، تاجر، موظف...)"
+                value={targetName}
+                onSearch={async (q) => {
+                    const result = await triggerSearch(q).unwrap();
+                    // Robust check: baseApi middleware might have already unwrapped 'results'
+                    if (Array.isArray(result)) return result;
+                    return result.results || [];
+                }}
+                onSelect={(item) => {
+                    setTargetType(item.type);
+                    setTargetId(item.id);
+                    setTargetName(item.name);
+                }}
+                renderItem={(item) => (
+                    <div className="flex items-center justify-between w-full">
+                        <div>
+                            <div className="font-bold">{item.name}</div>
+                            <div className="text-[10px] text-zinc-400">{item.phone}</div>
+                        </div>
+                        <span className="text-[9px] font-black bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                            {item.type_label}
+                        </span>
+                    </div>
+                )}
+                style={{ width: '100%' }}
+            />
+         </div>
+
+         <div>
+            <label className="block text-sm font-black text-zinc-500 mb-2">من تاريخ</label>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm" />
+         </div>
+
+         <div>
+            <label className="block text-sm font-black text-zinc-500 mb-2">إلى تاريخ</label>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm" />
+         </div>
+
+         {targetId && (
+            <div className="md:col-span-4 flex items-center justify-between bg-purple-50 p-4 rounded-2xl mt-2 border border-purple-100">
+               <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-purple-600">account_circle</span>
+                  <div>
+                    <span className="text-sm font-black text-purple-900 block">عرض كشف حساب: {targetName} ({targetType === 'supplier' ? 'مزارع' : targetType === 'customer' ? 'تاجر/زبون' : targetType === 'employee' ? 'موظف' : 'شريك'})</span>
+                    <span className="text-xs text-purple-600 font-bold">يمكنك مسح الإدخال للبحث عن حساب آخر</span>
+                  </div>
+               </div>
+               <button onClick={() => {
+                  setTargetId('');
+                  setTargetType('');
+                  setTargetName('');
+                  setSearchQuery('');
+               }} className="text-rose-500 hover:text-rose-700 font-bold text-sm bg-white px-3 py-1.5 rounded-xl shadow-sm">
+                  إلغاء وتغيير الحساب
+               </button>
+            </div>
+         )}
       </div>
 
-      <div className="flex gap-2 mb-8 bg-zinc-100 p-1.5 rounded-2xl w-fit">
-        {([
-          { key: 'supplier', label: 'المزارعين' },
-          { key: 'customer', label: 'التجار' },
-          { key: 'partner', label: 'الشركاء' },
-        ] as const).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => { setPartyType(tab.key); setSelectedParty(null); }}
-            className={`px-6 py-2.5 rounded-xl font-black text-sm transition-all ${partyType === tab.key ? 'bg-white shadow-sm text-emerald-700' : 'text-zinc-400 hover:text-zinc-600'}`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="md:col-span-1">
-          <label className="text-[10px] font-black text-zinc-400 uppercase mb-2 block">اختر الطرف</label>
-          <SmartSearch
-            placeholder="ابحث بالاسم أو رقم الهاتف..."
-            value={selectedParty?.name || ''}
-            onSearch={async (q) => {
-              const list = partyType === 'supplier' ? suppliers : partyType === 'customer' ? customers : partners;
-              return (list as any[]).filter((p: any) =>
-                p.name?.includes(q) || p.phone?.includes(q)
-              );
-            }}
-            onSelect={(p) => setSelectedParty(p)}
-            getLabel={(p) => p.name}
-          />
-        </div>
-        <div>
-          <label className="text-[10px] font-black text-zinc-400 uppercase mb-2 block">من تاريخ</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="w-full bg-white border border-zinc-200 rounded-2xl px-4 h-12 font-bold outline-none" />
-        </div>
-        <div>
-          <label className="text-[10px] font-black text-zinc-400 uppercase mb-2 block">إلى تاريخ</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="w-full bg-white border border-zinc-200 rounded-2xl px-4 h-12 font-bold outline-none" />
-        </div>
-      </div>
-
-      {selectedParty && stmt && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm">
-                <p className="text-[10px] font-black text-zinc-400 uppercase mb-1">الرصيد الافتتاحي</p>
-                <div className="text-2xl font-black font-code text-zinc-800">0.00 ₪</div>
+      {/* Report Table */}
+      {targetId && (isLoading || isFetching) ? (
+         <TableSkeleton titleWidth="200px" rows={10} columns={7} />
+      ) : targetId && isError ? (
+         <div className="bg-rose-50 p-8 rounded-3xl text-center border border-rose-100">
+            <span className="material-symbols-outlined text-6xl text-rose-200 mb-4">error</span>
+            <h3 className="text-xl font-black text-rose-700">تعذر تحميل كشف الحساب</h3>
+            <p className="text-sm font-bold text-rose-600 mt-2">
+              {(error as any)?.data?.detail || (error as any)?.data?.error || (error as any)?.error || 'حدث خطأ أثناء الاتصال بالخادم.'}
+            </p>
+         </div>
+      ) : targetId && statement.length > 0 ? (
+         <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-zinc-100">
+            <div className="p-6 border-b border-zinc-100 bg-zinc-50 flex justify-between items-center">
+               <div>
+                 <h3 className="text-xl font-black">كشف حساب: {targetName}</h3>
+                 <p className="text-sm font-bold text-zinc-500">الرصيد الإجمالي المعادل بالشيكل: <span className="text-purple-700">{report?.current_balance} ₪</span></p>
+              </div>
             </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm">
-                <p className="text-[10px] font-black text-zinc-400 uppercase mb-1">الرصيد الحالي</p>
-                <div className={`text-3xl font-black font-code ${stmt.current_balance >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    {fmt(Math.abs(stmt.current_balance))} ₪
-                </div>
-                <p className="text-[10px] font-black text-zinc-400 mt-1 uppercase">
-                    {stmt.current_balance >= 0 ? 'مدين (له علينا)' : 'دائن (عليه لنا)'}
-                </p>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse">
+                <thead>
+                  <tr className="bg-white text-[11px] font-black text-zinc-400 uppercase tracking-widest border-b border-zinc-200">
+                    <th className="px-6 py-4">التاريخ</th>
+                    <th className="px-6 py-4">البيان المالي والوصف</th>
+                    <th className="px-6 py-4">المرجع</th>
+                    <th className="px-6 py-4 border-r border-zinc-100 bg-purple-50/30 text-purple-700">مدين (+) له</th>
+                    <th className="px-6 py-4 bg-purple-50/30 text-purple-700">دائن (-) عليه</th>
+                    <th className="px-6 py-4 border-r border-zinc-100 bg-zinc-50 font-black">رصيد تراكمي (شيكل)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-50 font-code">
+                  {dateFrom && (
+                    <tr className="bg-zinc-100/50 font-black italic">
+                      <td className="px-6 py-4 text-xs text-zinc-400" dir="ltr">{dateFrom}</td>
+                      <td className="px-6 py-4 text-sm text-zinc-500 italic">رصيد قبل الفترة (Opening Balance)</td>
+                      <td className="px-6 py-4">---</td>
+                      <td className="px-6 py-4 border-r border-zinc-100 italic">{openingBalance.toLocaleString()} ₪</td>
+                      <td className="px-6 py-4 italic">---</td>
+                      <td className="px-6 py-4 border-r border-zinc-100 bg-zinc-100 font-black text-rose-600">
+                        {openingBalance.toLocaleString()} ₪
+                      </td>
+                    </tr>
+                  )}
+                  {statement.map((s: any, idx: number) => {
+                    return (
+                       <tr key={idx} className={`hover:bg-zinc-50/50 transition-colors ${s.is_realtime ? 'bg-amber-50/30' : ''}`}>
+                         <td className="px-6 py-4 text-xs font-bold text-zinc-500 whitespace-nowrap" dir="ltr">{s.date}</td>
+                         <td className="px-6 py-4">
+                            <div className="font-bold text-sm text-zinc-800">{s.description}</div>
+                            {s.is_realtime && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+                                <span className="text-[10px] text-amber-600 font-black">قيد التصفية (Sale)</span>
+                              </div>
+                            )}
+                         </td>
+                         <td className="px-6 py-4 text-[10px] text-zinc-400 font-black uppercase">
+                            {s.reference}
+                         </td>
+                         <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-rose-50/20 ${s.dr > 0 ? 'text-rose-600' : 'text-zinc-300'}`}>
+                            {s.dr > 0 ? s.dr.toLocaleString() : ''}
+                         </td>
+                         <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-emerald-50/20 ${s.cr > 0 ? 'text-emerald-600' : 'text-zinc-300'}`}>
+                            {s.cr > 0 ? s.cr.toLocaleString() : ''}
+                         </td>
+                         <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-zinc-50 ${s.balance >= 0 ? 'text-zinc-800' : 'text-rose-600'}`}>
+                            {s.balance.toLocaleString()} ₪
+                         </td>
+                       </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-sm">
-                <p className="text-[10px] font-black text-zinc-400 uppercase mb-1">إجمالي الحركات</p>
-                <div className="text-2xl font-black font-code text-zinc-800">{entries.length}</div>
-            </div>
-        </div>
+         </div>
+      ) : targetId ? (
+         <div className="bg-white p-10 rounded-3xl text-center border border-zinc-100">
+            <span className="material-symbols-outlined text-6xl text-zinc-200 mb-4">folder_open</span>
+            <h3 className="text-xl font-black text-zinc-400">لا توجد حركات مالية مسجلة لهذا الحساب</h3>
+         </div>
+      ) : (
+         <div className="bg-zinc-50/50 p-20 rounded-[3rem] text-center border-4 border-dashed border-zinc-100">
+            <span className="material-symbols-outlined text-8xl text-zinc-100 mb-6">search</span>
+            <h3 className="text-2xl font-black text-zinc-300">يرجى البحث عن (مزارع، تاجر، موظف، أو شريك) لعرض كشف الحساب</h3>
+         </div>
       )}
 
-      <div className="bg-white rounded-[2.5rem] overflow-hidden border border-zinc-100 shadow-sm">
-          <table className="w-full text-right border-collapse">
-            <thead>
-              <tr className="bg-zinc-50 border-b border-zinc-100 text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-                <th className="px-6 py-4">التاريخ</th>
-                <th className="px-6 py-4">البيان</th>
-                <th className="px-6 py-4">مدين (-)</th>
-                <th className="px-6 py-4">دائن (+)</th>
-                <th className="px-6 py-4">الرصيد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isFetching ? (
-                  <tr><td colSpan={5} className="py-20 text-center font-bold text-zinc-400">جاري تحميل البيانات...</td></tr>
-              ) : entries.length === 0 ? (
-                  <tr><td colSpan={5} className="py-20 text-center font-bold text-zinc-400">لا توجد حركات لعرضها.</td></tr>
-              ) : entries.map((e: any, idx: number) => (
-                  <tr key={idx} className="border-b border-zinc-50 hover:bg-zinc-50/50 transition-colors">
-                      <td className="px-6 py-4 font-code text-sm text-zinc-500">{new Date(e.date).toLocaleDateString('en-GB')}</td>
-                      <td className="px-6 py-4 font-bold text-on-surface">{e.description}</td>
-                      <td className="px-6 py-4 font-black font-code text-rose-600">{e.type === 'DR' ? fmt(e.foreign_amount) : ''}</td>
-                      <td className="px-6 py-4 font-black font-code text-emerald-600">{e.type === 'CR' ? fmt(e.foreign_amount) : ''}</td>
-                      <td className="px-6 py-4 font-black font-code text-zinc-800 bg-zinc-50/30">{fmt(Math.abs(e.balance))}</td>
-                  </tr>
-              ))}
-            </tbody>
-          </table>
-      </div>
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; font-family: sans-serif; }
+          .print-table { width: 100% !important; border: 1px solid #ccc !important; font-size: 11px !important; }
+          .print-table th, .print-table td { border: 1px solid #ddd !important; padding: 6px !important; }
+        }
+      `}</style>
     </div>
   );
 }

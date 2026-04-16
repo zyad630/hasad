@@ -101,6 +101,7 @@ class SettlementService:
             raise ValueError('هذه الإرسالية تمت تصفيتها مسبقاً')
 
         data = self.calculate()
+        self._validate_confirmation_data(data)
 
         try:
             supplier_balance_before = str(self.supplier.balance)
@@ -141,6 +142,23 @@ class SettlementService:
             pass
 
         return settlement
+
+    def _validate_confirmation_data(self, data: dict) -> None:
+        fields_to_check = (
+            'total_sales',
+            'commission_amount',
+            'plastic_cost',
+            'labor_cost',
+            'transport_cost',
+            'generic_expenses',
+            'total_expenses',
+        )
+        for field in fields_to_check:
+            if Decimal(str(data.get(field, 0))) < Decimal('0'):
+                raise ValueError(f'Invalid negative settlement value: {field}')
+
+        if Decimal(str(data.get('total_sales', 0))) <= Decimal('0'):
+            raise ValueError('لا يمكن تصفية إرسالية بدون مبيعات')
 
 
 class LedgerService:
@@ -195,65 +213,53 @@ class LedgerService:
         sid = settlement.id
         tenant = settlement.tenant
         name = settlement.supplier.name
+        total_sales = Decimal(str(settlement.total_sales)).quantize(MONEY, ROUND_HALF_UP)
 
-        # 1. Credit supplier (what we owe them net)
-        entries.append(LedgerEntry(
-            tenant=tenant, entry_type=LedgerEntry.CREDIT,
-            account_type='supplier', account_id=settlement.supplier.id,
-            foreign_amount=settlement.net_supplier, base_amount=settlement.net_supplier, exchange_rate=1, currency_code=settlement.currency_code,
-            reference_type='settlement', reference_id=sid,
-            description=f'تصفية إرسالية — صافي مستحق للمورد {name}',
-            created_by=user,
-        ))
-
-        # 2. Credit commission revenue
-        entries.append(LedgerEntry(
-            tenant=tenant, entry_type=LedgerEntry.CREDIT,
-            account_type='commission_revenue', account_id=tenant.id,
-            foreign_amount=settlement.commission_amount, base_amount=settlement.commission_amount, exchange_rate=1, currency_code=settlement.currency_code,
-            reference_type='settlement', reference_id=sid,
-            description=f'عمولة تصفية — {name}',
-            created_by=user,
-        ))
-
-        # 3. Debit cost-of-goods (total of sales revenue)
         entries.append(LedgerEntry(
             tenant=tenant, entry_type=LedgerEntry.DEBIT,
             account_type='cost_of_goods', account_id=tenant.id,
-            foreign_amount=settlement.total_sales, base_amount=settlement.total_sales, exchange_rate=1, currency_code=settlement.currency_code,
+            foreign_amount=total_sales, base_amount=total_sales, exchange_rate=1, currency_code=settlement.currency_code,
             reference_type='settlement', reference_id=sid,
-            description=f'تصفية — تكلفة البضاعة من {name}',
+            description=f'تصفية إرسالية — إثبات تكلفة بضاعة للمزارع: {name}',
+            created_by=user,
+        ))
+        entries.append(LedgerEntry(
+            tenant=tenant, entry_type=LedgerEntry.CREDIT,
+            account_type='supplier', account_id=settlement.supplier.id,
+            foreign_amount=total_sales, base_amount=total_sales, exchange_rate=1, currency_code=settlement.currency_code,
+            reference_type='settlement', reference_id=sid,
+            description=f'تصفية إرسالية — إجمالي مستحق للمزارع قبل الخصومات: {name}',
             created_by=user,
         ))
 
-        # 4–6. Module 2: Extra cost entries (CR expense accounts)
-        cost_map = [
-            ('plastic_cost',   'plastic_expense',   'بلاستيك'),
-            ('labor_cost',     'labor_expense',     'عتالة'),
-            ('transport_cost', 'transport_expense', 'نقل'),
+        deduction_map = [
+            ('commission_amount', 'commission_revenue', 'العمولة'),
+            ('plastic_cost', 'plastic_expense', 'البلاستيك'),
+            ('labor_cost', 'labor_expense', 'العتالة'),
+            ('transport_cost', 'transport_expense', 'النقل'),
+            ('generic_expenses', 'general_expense', 'مصاريف عامة'),
         ]
-        for key, acct, label in cost_map:
-            amount = data.get(key, Decimal('0'))
-            if amount and amount > 0:
-                # Debit expense account
+        for key, acct, label in deduction_map:
+            amount = Decimal(str(data.get(key, 0) or 0)).quantize(MONEY, ROUND_HALF_UP)
+            if amount > 0:
                 entries.append(LedgerEntry(
                     tenant=tenant, entry_type=LedgerEntry.DEBIT,
-                    account_type=acct, account_id=tenant.id,
-                    foreign_amount=amount, base_amount=amount, exchange_rate=1, currency_code=settlement.currency_code,
-                    reference_type='settlement', reference_id=sid,
-                    description=f'مصروف {label} — {name}',
-                    created_by=user,
-                ))
-                # Credit supplier (deducted from their net)
-                entries.append(LedgerEntry(
-                    tenant=tenant, entry_type=LedgerEntry.CREDIT,
                     account_type='supplier', account_id=settlement.supplier.id,
                     foreign_amount=amount, base_amount=amount, exchange_rate=1, currency_code=settlement.currency_code,
                     reference_type='settlement', reference_id=sid,
-                    description=f'خصم {label} من مستحقات {name}',
+                    description=f'تصفية إرسالية — خصم {label} من مستحقات المزارع: {name}',
+                    created_by=user,
+                ))
+                entries.append(LedgerEntry(
+                    tenant=tenant, entry_type=LedgerEntry.CREDIT,
+                    account_type=acct, account_id=tenant.id,
+                    foreign_amount=amount, base_amount=amount, exchange_rate=1, currency_code=settlement.currency_code,
+                    reference_type='settlement', reference_id=sid,
+                    description=f'تصفية إرسالية — تسجيل بند {label} (مخصوم من {name})',
                     created_by=user,
                 ))
 
+        LedgerService._validate_balanced_entries(entries)
         LedgerEntry.objects.bulk_create(entries)
 
     @staticmethod
@@ -294,8 +300,6 @@ class LedgerService:
     @transaction.atomic
     def record_general_expense(expense, user=None):
         """DR general_expense → CR cash (Manual expense entry)"""
-        if not hasattr(LedgerService, '_double_entry'):
-             from .services import LedgerService # Safekeeping
         LedgerService._double_entry(
             tenant=expense.tenant,
             dr_type='general_expense', dr_id=expense.category.id if expense.category else expense.tenant.id,
@@ -419,6 +423,19 @@ class LedgerService:
             ),
         ])
 
+    @staticmethod
+    def _validate_balanced_entries(entries):
+        total_dr = sum(
+            (entry.base_amount for entry in entries if entry.entry_type == LedgerEntry.DEBIT),
+            Decimal('0.000')
+        )
+        total_cr = sum(
+            (entry.base_amount for entry in entries if entry.entry_type == LedgerEntry.CREDIT),
+            Decimal('0.000')
+        )
+        if total_dr != total_cr:
+            raise ValueError(f'Unbalanced ledger entries: DR={total_dr} CR={total_cr}')
+
     # ─── BRD: Automatic Exchange Rate Difference (Forex Gain / Loss) ───────────
 
     @staticmethod
@@ -489,3 +506,32 @@ class LedgerService:
         )
         return diff
 
+    @staticmethod
+    @transaction.atomic
+    def record_journal_voucher(voucher, user=None):
+        """
+        Record a pure manual Journal Voucher between any two accounts.
+        DR account_type (id) -> CR account_type (id)
+        """
+        if Decimal(str(voucher.amount)) <= Decimal('0'):
+            raise ValueError('Journal voucher amount must be greater than zero.')
+        if (
+            str(voucher.dr_account_type) == str(voucher.cr_account_type) and
+            str(voucher.dr_account_id) == str(voucher.cr_account_id)
+        ):
+            raise ValueError('Debit and credit accounts cannot be the same.')
+
+        LedgerService._double_entry(
+            tenant=voucher.tenant,
+            dr_type=voucher.dr_account_type, 
+            dr_id=voucher.dr_account_id,
+            cr_type=voucher.cr_account_type, 
+            cr_id=voucher.cr_account_id,
+            amount=voucher.amount,
+            exchange_rate=voucher.exchange_rate,
+            currency_code=voucher.currency_code,
+            ref_type='journal_voucher', 
+            ref_id=voucher.id,
+            description=voucher.description or f'مستند قيد رقم {voucher.id}',
+            user=user,
+        )

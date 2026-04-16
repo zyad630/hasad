@@ -7,6 +7,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/baseApi';
 import { VegetableLoader } from '../components/ui/VegetableLoader';
+import { formatDateDisplay } from '../utils/dateUtils';
 
 const reportsApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -108,9 +109,9 @@ export default function Dashboard() {
           onClick={() => navigate('/accounting/statement')}
         />
         <KpiCard
-          label="مستحقات الموردين"
+          label="مستحقات المزارعين"
           value={fmt(d.total_payables)}
-          sub={`${d.active_suppliers || 0} مورد نشط`}
+          sub={`${d.active_suppliers || 0} مزارع نشط`}
           color="#dc2626" icon="🌾"
           onClick={() => navigate('/suppliers')}
         />
@@ -146,7 +147,7 @@ export default function Dashboard() {
         <div style={{ background: 'white', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
           <div style={{ padding: '16px 20px', background: '#f0fdf4', borderBottom: '1px solid #d1fae5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontWeight: 800, fontSize: '14px', color: '#065f46' }}>📋 آخر فواتير المبيعات</h3>
-            <button onClick={() => navigate('/reports/unified-statement')} style={{ fontSize: '12px', color: '#059669', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>عرض الكل ←</button>
+            <button onClick={() => navigate('/reports/invoices')} style={{ fontSize: '12px', color: '#059669', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}>عرض الكل ←</button>
           </div>
           {(!d.recent_sales || d.recent_sales.length === 0) ? (
             <div style={{ padding: '30px', textAlign: 'center', color: '#d1d5db', fontWeight: 600, fontSize: '13px' }}>لا توجد مبيعات اليوم</div>
@@ -178,7 +179,7 @@ export default function Dashboard() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: '13px' }}>{p.supplier__name}</div>
                 <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-                  {p.shipment_date} · {p.status === 'open' ? <span style={{ color: '#059669' }}>مفتوحة</span> : <span style={{ color: '#9ca3af' }}>تمت التصفية</span>}
+                  {formatDateDisplay(p.shipment_date)} · {p.status === 'open' ? <span style={{ color: '#059669' }}>مفتوحة</span> : <span style={{ color: '#9ca3af' }}>تمت التصفية</span>}
                 </div>
               </div>
               <span style={{ fontSize: '12px', fontWeight: 700, color: p.status === 'open' ? '#0284c7' : '#9ca3af', background: p.status === 'open' ? '#eff6ff' : '#f9fafb', padding: '3px 8px', borderRadius: '6px' }}>

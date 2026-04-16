@@ -33,8 +33,8 @@ export default function CustomerBalanceReport() {
       c.name,
       c.balances.map((b: any) => `${b.amount} ${b.currency_symbol}`).join(' / '),
       c.phone || '',
-      c.last_payment_date ? new Date(c.last_payment_date).toLocaleDateString('en-US') : '---',
-      c.last_invoice_date ? new Date(c.last_invoice_date).toLocaleDateString('en-US') : '---',
+      c.last_payment_date ? new Date(c.last_payment_date).toLocaleDateString('en-GB') : '---',
+      c.last_invoice_date ? new Date(c.last_invoice_date).toLocaleDateString('en-GB') : '---',
       c.notes || ''
     ]);
     
@@ -119,12 +119,12 @@ export default function CustomerBalanceReport() {
                   <td className="px-6 py-6 font-bold text-zinc-500" dir="ltr">{c.phone || '---'}</td>
                   <td className="px-6 py-6">
                      <div className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg inline-block">
-                        {c.last_payment_date ? new Date(c.last_payment_date).toLocaleDateString('en-US') : '---'}
+                        {c.last_payment_date ? new Date(c.last_payment_date).toLocaleDateString('en-GB') : '---'}
                      </div>
                   </td>
                   <td className="px-6 py-6">
                      <div className="text-xs font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg inline-block">
-                        {c.last_invoice_date ? new Date(c.last_invoice_date).toLocaleDateString('en-US') : '---'}
+                        {c.last_invoice_date ? new Date(c.last_invoice_date).toLocaleDateString('en-GB') : '---'}
                      </div>
                   </td>
                   <td className="px-6 py-6 text-xs text-zinc-400 max-w-[200px] truncate">{c.notes || '---'}</td>

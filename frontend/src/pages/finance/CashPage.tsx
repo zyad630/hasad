@@ -3,23 +3,11 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../api/baseApi';
 import { VegetableLoader } from '../../components/ui/VegetableLoader';
 import { useGetCurrenciesQuery, useGetExchangeRatesQuery } from '../settings/Currencies';
-import { useGetSuppliersQuery } from '../suppliers/Suppliers';
-import { useGetCustomersQuery } from '../suppliers/Customers';
 import { api as baseApi } from '../../api/baseApi';
 import { SYSTEM_BANKS } from '../../utils/systemBanks';
-import SmartSearch from '../../components/ui/SmartSearch';
+import { SmartSearch } from '../../components/ui/SmartSearch';
 import { formatDateDisplay } from '../../utils/dateUtils';
-
-const hrApi = baseApi.injectEndpoints({
-  endpoints: (build) => ({
-    getEmployees: build.query({
-      query: () => 'employees/',
-      providesTags: ['Employees'],
-    }),
-  }),
-});
-
-export const { useGetEmployeesQuery } = hrApi;
+import { formatAmount } from '../../utils/numberUtils';
 
 const cashApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -44,10 +32,14 @@ const cashApi = api.injectEndpoints({
       providesTags: ['Cash'],
     }),
     getAccounts: build.query({
-      query: () => 'accounts/',
+      query: (search?: string) => `accounts/${search ? `?search=${encodeURIComponent(search)}` : ''}`,
       providesTags: ['Accounts'],
     }),
+    searchParties: build.query({
+      query: (q) => `reports/search-parties/?q=${encodeURIComponent(q)}`,
+    }),
   }),
+  overrideExisting: true,
 });
 
 export const { 
@@ -55,7 +47,8 @@ export const {
   useGetCashTransactionsQuery, 
   useCreateVoucherMutation, 
   useGetUnclearedChecksQuery,
-  useGetAccountsQuery
+  useGetAccountsQuery,
+  useSearchPartiesQuery
 } = cashApi;
 
 interface VoucherEntry {
@@ -79,10 +72,10 @@ export default function CashPage() {
   const { data: currencies } = useGetCurrenciesQuery({});
   const { data: exchangeRates } = useGetExchangeRatesQuery({});
   const { data: unclearedChecksData } = useGetUnclearedChecksQuery({});
-  const { data: suppliersData } = useGetSuppliersQuery({});
-  const { data: customersData } = useGetCustomersQuery({});
-  const { data: employeesData } = useGetEmployeesQuery({});
-  const { data: accountsData } = useGetAccountsQuery({});
+  
+  const [triggerSearchParties] = cashApi.useLazySearchPartiesQuery();
+  const [triggerSearchAccounts] = cashApi.useLazyGetAccountsQuery();
+
   const [createVoucher] = useCreateVoucherMutation();
 
   const unclearedChecks = unclearedChecksData?.checks || [];
@@ -180,6 +173,7 @@ export default function CashPage() {
 
   // Move to next line mechanism
   const [isDateFocused, setIsDateFocused] = useState(false);
+  const [focusedDateIndex, setFocusedDateIndex] = useState(-1);
   
   // Move to next line mechanism
   const handleKeyDown = (e: React.KeyboardEvent, index: number, fieldName: string) => {
@@ -409,7 +403,7 @@ export default function CashPage() {
                 <span className="px-3 py-1 bg-zinc-100 text-zinc-400 text-xs font-black rounded-lg uppercase">{b.currency_code}</span>
              </div>
              <p className="text-[10px] font-black text-zinc-400 uppercase mb-1">الرصيد المتاح</p>
-             <h3 className="text-3xl font-black text-on-surface">{parseFloat(b.balance || 0)}</h3>
+             <h3 className="text-3xl font-black text-on-surface">{formatAmount(b.balance || 0)}</h3>
           </div>
         ))}
       </div>
@@ -463,7 +457,7 @@ export default function CashPage() {
                            </td>
                            <td className="px-4 py-5 text-left font-code font-black text-on-surface">
                               <span className={tx.tx_type === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
-                                 {tx.tx_type === 'in' ? '+' : '-'} {parseFloat(tx.foreign_amount).toLocaleString()}
+                                 {tx.tx_type === 'in' ? '+' : '-'} {formatAmount(tx.foreign_amount)}
                               </span>
                               <span className="mr-1 text-[10px] text-zinc-400">{tx.currency_code}</span>
                            </td>
@@ -494,16 +488,16 @@ export default function CashPage() {
                 {/* User Input Headers */}
                 <div className="grid grid-cols-4 gap-4 mb-6">
                   <div>
-                     <label className="text-sm font-bold text-zinc-500 mb-1 block">مقبوض من / دفع لـ</label>
+                     <label className="text-sm font-bold text-zinc-500 mb-1 block">
+                        {txType === 'in' ? 'مقبوض من (استلمنا من)' : 'دفع لـ (صرفنا إلى)'}
+                     </label>
                          <SmartSearch 
                             id="header-received-from"
-                            placeholder="ابحث عن مزارع، زبون، أو موظف..."
+                            placeholder={txType === 'in' ? 'من من قبضت؟' : 'لمن صرفت؟'}
                             value={receivedFrom}
-                            onSearch={(q) => {
-                                const s = suppliersData?.results || suppliersData || [];
-                                const c = customersData?.results || customersData || [];
-                                const e = employeesData?.results || employeesData || [];
-                                return [...s, ...c, ...e];
+                            onSearch={async (q) => {
+                                const res = await triggerSearchParties(q).unwrap();
+                                return res;
                             }}
                             onSelect={(p) => {
                                 setReceivedFrom(p.name);
@@ -512,7 +506,12 @@ export default function CashPage() {
                                    if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
                                 }, 150);
                             }}
-                            getLabel={(p) => p.name}
+                            renderItem={(item) => (
+                               <div className="flex justify-between items-center w-full">
+                                  <span className="font-bold">{item.name}</span>
+                                  <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{item.type_label}</span>
+                               </div>
+                            )}
                             onEnterEmpty={() => {
                                 setTimeout(() => {
                                    const el = document.getElementById('header-doc-date');
@@ -522,7 +521,7 @@ export default function CashPage() {
                          />
                   </div>
                   <div>
-                     <label className="text-sm font-bold text-zinc-500 mb-1 block">تاريخ المستند</label>
+                     <label className="text-sm font-bold text-zinc-500 mb-1 block">تاريخ المستند (يوم/شهر/سنة)</label>
                      <input 
                         id="header-doc-date" 
                         type={isDateFocused ? 'date' : 'text'}
@@ -644,9 +643,9 @@ export default function CashPage() {
                                    id={`entry-${idx}-account_name`}
                                    value={en.account_name || ''}
                                    placeholder="ابحث عن الحساب..."
-                                   onSearch={(q) => {
-                                       const accs = accountsData?.results || accountsData || [];
-                                       return accs;
+                                   onSearch={async (q) => {
+                                       const res = await triggerSearchAccounts(q).unwrap();
+                                       return res.results || res;
                                    }}
                                    onSelect={(acc) => {
                                        updateEntry(idx, 'account_id', acc.code);
@@ -662,7 +661,12 @@ export default function CashPage() {
                                           if (el) { el.focus(); if (el instanceof HTMLInputElement) el.select(); }
                                        }, 150);
                                    }}
-                                   getLabel={(acc) => `${acc.code} - ${acc.name}`}
+                                   renderItem={(acc) => (
+                                       <div className="flex justify-between items-center w-full">
+                                          <span className="font-bold">{acc.name}</span>
+                                          <span className="font-code text-zinc-400 text-xs">{acc.code}</span>
+                                       </div>
+                                   )}
                                    onEnterEmpty={() => {
                                        const targetId = txType === 'in' ? `entry-${idx}-credit` : `entry-${idx}-debit`;
                                        const el = document.getElementById(targetId);
@@ -708,7 +712,17 @@ export default function CashPage() {
                                 />
                               </td>
                               <td className="p-1 border-l">
-                                <input id={`entry-${idx}-due_date`} type="date" value={en.due_date || ''} onFocus={() => forceCheckEntry(idx)} onChange={(e)=>updateEntry(idx, 'due_date', e.target.value)} onKeyDown={(e)=>handleKeyDown(e, idx, 'due_date')} className={`w-full bg-transparent p-2 font-code outline-none text-xs ${en.type==='cash' ? 'opacity-20' : ''}`} />
+                                <input 
+                                   id={`entry-${idx}-due_date`} 
+                                   type={focusedDateIndex === idx ? 'date' : 'text'} 
+                                   value={focusedDateIndex === idx ? (en.due_date || '') : formatDateDisplay(en.due_date || '')} 
+                                   onFocus={() => { forceCheckEntry(idx); setFocusedDateIndex(idx); }} 
+                                   onBlur={() => setFocusedDateIndex(-1)}
+                                   onChange={(e)=>updateEntry(idx, 'due_date', e.target.value)} 
+                                   onKeyDown={(e)=>handleKeyDown(e, idx, 'due_date')} 
+                                   className={`w-full bg-transparent p-2 font-code outline-none text-xs text-center ${en.type==='cash' ? 'opacity-20' : ''}`} 
+                                   placeholder="DD/MM/YYYY"
+                                />
                               </td>
                               <td className="p-1 border-l">
                                 <input 
@@ -750,7 +764,7 @@ export default function CashPage() {
              <div className="p-6 border-t border-zinc-100 flex justify-between items-center bg-white rounded-b-3xl shadow-[0_-5px_20px_rgba(0,0,0,0.03)]">
                 <div>
                    <span className="text-zinc-500 font-bold mr-2">مجموع السند:</span>
-                   <span className="text-3xl font-black text-emerald-600 font-code tracking-tighter" dir="ltr">{totalAmount.toLocaleString('en-GB')} {currencyCode}</span>
+                   <span className="text-3xl font-black text-emerald-600 font-code tracking-tighter" dir="ltr">{formatAmount(totalAmount)} {currencyCode}</span>
                 </div>
                 <div className="flex gap-4">
                   <button onClick={handleSubmit} className="px-10 py-3 bg-emerald-600 text-white rounded-xl font-bold cursor-pointer hover:bg-emerald-700 shadow-md">اعتماد وحفظ السند (Save)</button>
@@ -791,7 +805,7 @@ export default function CashPage() {
                              <td className="p-2 font-code font-bold">{ck.check_number}</td>
                              <td className="p-2 font-bold text-sm">{ck.bank_name}</td>
                              <td className="p-2 font-code text-emerald-600 bg-emerald-50/30">{parseFloat(ck.amount)}</td>
-                             <td className="p-2 font-code text-xs text-zinc-500" dir="ltr">{ck.due_date}</td>
+                             <td className="p-2 font-code text-xs text-zinc-500" dir="ltr">{formatDateDisplay(ck.due_date)}</td>
                           </tr>
                        ))}
                        {unclearedChecks.length === 0 && (

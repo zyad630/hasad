@@ -89,7 +89,7 @@ export default function ChecksPage() {
               <tr className="bg-zinc-50/50 text-zinc-400 text-[10px] font-black uppercase tracking-widest">
                 <th className="px-6 py-5">رقم الشيك</th>
                 <th className="px-6 py-5">البنك</th>
-                <th className="px-6 py-5">العميل / المورد</th>
+                <th className="px-6 py-5">العميل / المزارع</th>
                 <th className="px-6 py-5">المبلغ</th>
                 <th className="px-6 py-5">تاريخ الاستحقاق</th>
                 <th className="px-6 py-5">الحالة الحالية</th>

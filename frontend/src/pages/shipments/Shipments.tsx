@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../api/baseApi';
 import { TableSkeleton } from '../../components/Skeleton';
-import { useGetSuppliersQuery } from '../suppliers/Suppliers';
 import { useGetItemsQuery } from '../inventory/Inventory';
+import { SmartSearch } from '../../components/ui/SmartSearch';
 
 const shipmentApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -27,22 +27,22 @@ export const { useGetShipmentsQuery, useCreateShipmentMutation } = shipmentApi;
 const Shipments = () => {
   const { showToast } = useToast();
   const { data: shipmentsData, isLoading } = useGetShipmentsQuery({});
-  const { data: suppliersData } = useGetSuppliersQuery({});
+  const [triggerSearchParties] = api.useLazySearchPartiesQuery();
+  const [triggerSearchCatalog] = api.useLazySearchCatalogQuery();
   const { data: itemsData } = useGetItemsQuery({});
   const [createShipment] = useCreateShipmentMutation();
-
+ 
   const shipments = shipmentsData?.results || (Array.isArray(shipmentsData) ? shipmentsData : []);
-  const suppliers = suppliersData?.results || (Array.isArray(suppliersData) ? suppliersData : []);
   const items = itemsData?.results || (Array.isArray(itemsData) ? itemsData : []);
-
+ 
   const [isAdding, setIsAdding] = useState(false);
   
   const [formData, setFormData] = useState({
-    supplier: '', shipment_date: new Date().toISOString().split('T')[0], deal_type: 'commission', notes: ''
+    supplier: '', supplier_name: '', shipment_date: new Date().toISOString().split('T')[0], deal_type: 'commission', notes: ''
   });
   
   const [shipmentItems, setShipmentItems] = useState([
-    { item: '', quantity: 0, unit: 'kg', expected_price: 0 }
+    { item: '', item_name: '', quantity: 0, unit: 'kg', expected_price: 0 }
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,21 +57,21 @@ const Shipments = () => {
         items: shipmentItems
       }).unwrap();
       setIsAdding(false);
-      setFormData({supplier: '', shipment_date: new Date().toISOString().split('T')[0], deal_type: 'commission', notes: ''});
-      setShipmentItems([{ item: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
+      setFormData({supplier: '', supplier_name: '', shipment_date: new Date().toISOString().split('T')[0], deal_type: 'commission', notes: ''});
+      setShipmentItems([{ item: '', item_name: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
     } catch(err) {
       showToast('خطأ في إدخال الإرسالية.', 'error');
     }
   };
 
   const handleAddItem = () => {
-    setShipmentItems([...shipmentItems, { item: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
+    setShipmentItems([...shipmentItems, { item: '', item_name: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
   };
 
   const removeItem = (idx: number) => {
     const newItems = [...shipmentItems];
     newItems.splice(idx, 1);
-    setShipmentItems(newItems.length ? newItems : [{ item: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
+    setShipmentItems(newItems.length ? newItems : [{ item: '', item_name: '', quantity: 0, unit: 'kg', expected_price: 0 }]);
   };
 
   if (isLoading) return <TableSkeleton titleWidth="240px" rows={7} columns={6} />;
@@ -111,19 +111,25 @@ const Shipments = () => {
                   <span className="absolute inset-y-0 right-4 flex items-center text-zinc-400">
                     <span className="material-symbols-outlined">search</span>
                   </span>
-                  <select 
-                    required 
-                    value={formData.supplier} 
-                    onChange={e => {
-                      setFormData({...formData, supplier: e.target.value});
-                      const slr = suppliers?.find((s:any) => s.id.toString() === e.target.value.toString());
-                      if (slr) setFormData(prev => ({...prev, deal_type: slr.deal_type || 'commission'}));
+                  <SmartSearch 
+                    id="shipment-supplier-search"
+                    placeholder="ابحث واختر المزارع..."
+                    onSearch={async (q) => {
+                       const res = await triggerSearchParties(q).unwrap();
+                       return res;
                     }}
-                    className="w-full h-14 pe-12 ps-4 appearance-none bg-surface-container-high border-none rounded-xl focus:ring-2 focus:ring-primary text-lg transition-all text-on-surface"
-                  >
-                    <option value="" disabled>ابحث واختر المزارع...</option>
-                    {suppliers?.map((s:any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                    renderItem={(item: any) => (
+                      <div className="flex justify-between items-center w-full">
+                        <span className="font-bold">{item.name}</span>
+                        <span className="text-[10px] font-black bg-primary-container/20 text-primary px-2 py-0.5 rounded-full">{item.type_label}</span>
+                      </div>
+                    )}
+                    onSelect={(s: any) => {
+                      setFormData({...formData, supplier: s.id, supplier_name: s.name, deal_type: s.deal_type || 'commission'});
+                    }}
+                    value={formData.supplier_name}
+                    style={{ width: '100%', height: '56px' }}
+                  />
                   <span className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400">
                     <span className="material-symbols-outlined">expand_more</span>
                   </span>
@@ -206,21 +212,23 @@ const Shipments = () => {
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-[11px] font-bold uppercase text-zinc-500 tracking-wider">الصنف</label>
                     <div className="relative">
-                      <select 
-                        required 
-                        value={si.item} 
-                        onChange={e => {
-                          const newArr = [...shipmentItems];
-                          newArr[index].item = e.target.value;
-                          setShipmentItems(newArr);
+                      <SmartSearch 
+                        id={`shipitem-${index}`}
+                        placeholder="- ابحث عن الصنف -"
+                        onSearch={async (q) => {
+                           const res = await triggerSearchCatalog(q).unwrap();
+                           return res;
                         }}
-                        className="w-full h-12 px-4 bg-white border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary text-base appearance-none shadow-sm transition-all text-on-surface">
-                        <option value="" disabled>- حدد الصنف -</option>
-                        {items?.map((i:any) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                      </select>
-                      <span className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400">
-                        <span className="material-symbols-outlined">expand_more</span>
-                      </span>
+                        onSelect={(item: any) => {
+                           const newArr = [...shipmentItems];
+                           newArr[index].item = item.id;
+                           newArr[index].item_name = item.name;
+                           newArr[index].unit = item.base_unit || 'صندوق';
+                           setShipmentItems(newArr);
+                        }}
+                        value={si.item_name}
+                        style={{ width: '100%', height: '48px' }}
+                      />
                     </div>
                   </div>
                   

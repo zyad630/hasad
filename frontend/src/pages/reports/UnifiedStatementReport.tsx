@@ -7,29 +7,43 @@ import { useToast } from '../../components/ui/Toast';
 const statementApi = api.injectEndpoints({
   endpoints: (build) => ({
     getUnifiedStatement: build.query({
-      query: ({ type, id }) => `reports/unified-statement/?type=${type}&id=${id}`,
+      query: ({ type, id, from, to }) => {
+          let url = `reports/unified-statement/?type=${type}&id=${id}`;
+          if (from) url += `&from=${from}`;
+          if (to) url += `&to=${to}`;
+          return url;
+      },
     }),
-    getStatementTargets: build.query({
-      query: (type) => `${type}s/`, 
-      // type can be 'customer' or 'supplier' 
-      // assuming api/customers/ and api/suppliers/ exist and return a list
+    searchParties: build.query({
+      query: (q) => `reports/search-parties/?q=${encodeURIComponent(q)}`,
     }),
   }),
 });
 
-export const { useGetUnifiedStatementQuery, useLazyGetUnifiedStatementQuery, useGetStatementTargetsQuery } = statementApi;
+export const { useGetUnifiedStatementQuery, useSearchPartiesQuery } = statementApi;
 
 export default function UnifiedStatementReport() {
   const { showToast } = useToast();
-  const [targetType, setTargetType] = useState<'customer' | 'supplier'>('customer');
+  const [targetType, setTargetType] = useState('');
   const [targetId, setTargetId] = useState('');
+  const [targetName, setTargetName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const formatDateDisplay = (val: any) => {
+    if (!val) return '';
+    const s = String(val);
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?/);
+    if (!m) return s;
+    const [, y, mo, d, hm] = m;
+    return hm ? `${d}/${mo}/${y} ${hm}` : `${d}/${mo}/${y}`;
+  };
   
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.slice(0, 8) + '01';
   const [dateFrom, setDateFrom] = useState(monthStart);
   const [dateTo, setDateTo] = useState(today);
 
-  const { data: targets, isLoading: loadingTargets } = useGetStatementTargetsQuery(targetType);
+  const { data: searchResults, isFetching: isSearching } = useSearchPartiesQuery(searchQuery, { skip: searchQuery.length < 2 });
   const { data: report, isLoading, isFetching, isError, error, refetch } = useGetUnifiedStatementQuery(
      { type: targetType, id: targetId, from: dateFrom, to: dateTo }, 
      { skip: !targetId }
@@ -47,17 +61,14 @@ export default function UnifiedStatementReport() {
        showToast('لا توجد بيانات لتصديرها', 'warning');
        return;
     }
-    const headers = ["التاريخ", "البيان", "المرجع", "العملة", "سعر الصرف", "المبلغ الفعلي", "المبلغ الأساسي (شيكل)", "نوع الحركة", "رصيد شيكل تراكمي"];
+    const headers = ["التاريخ", "البيان", "المرجع", "مدين (+)", "دائن (-)", "رصيد تراكمي (شيكل)"];
     const rows = statement.map((r: any) => [
       r.date,
       r.description,
-      `${r.reference_type} #${r.reference_id.substring(0,6)}`,
-      r.currency_code,
-      r.exchange_rate,
-      r.foreign_amount,
-      r.base_amount,
-      r.entry_type === 'DR' ? 'مدين (+)' : 'دائن (-)',
-      r.running_balance_base
+      r.reference,
+      r.dr || 0,
+      r.cr || 0,
+      r.balance,
     ]);
     
     let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
@@ -97,19 +108,52 @@ export default function UnifiedStatementReport() {
 
       {/* Filters Form */}
       <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-zinc-100 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-         <div>
-            <label className="block text-sm font-black text-zinc-500 mb-2">نوع الحساب</label>
-            <select 
-              className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm"
-              value={targetType}
-              onChange={(e) => {
-                 setTargetType(e.target.value as 'customer' | 'supplier');
-                 setTargetId('');
-              }}
-            >
-               <option value="customer">زبون / تاجر</option>
-               <option value="supplier">مورد / مزارع</option>
-            </select>
+         <div className="md:col-span-2 relative">
+            <label className="block text-sm font-black text-zinc-500 mb-2">البحث الشامل (اسم أو رقم، يشمل جميع الحسابات)</label>
+            <div className="relative">
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">search</span>
+              <input 
+                type="text" 
+                placeholder="ابحث عن مزارع، تاجر، موظف، أو شريك..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl pr-12 pl-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm" 
+              />
+            </div>
+            
+            {/* Search Results Dropdown */}
+            {isSearching && (
+              <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden max-h-64 overflow-y-auto">
+                <div className="p-4 text-center">
+                   <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                </div>
+              </div>
+            )}
+            
+            {!isSearching && searchResults?.results && searchResults.results.length > 0 && searchQuery && !targetId && (
+              <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden max-h-64 overflow-y-auto">
+                {searchResults.results.map((r: any) => (
+                  <button 
+                    key={`${r.type}-${r.id}`}
+                    onClick={() => {
+                        setTargetType(r.type);
+                        setTargetId(r.id);
+                        setTargetName(r.name);
+                        setSearchQuery(r.name);
+                    }}
+                    className="w-full text-right px-5 py-3 hover:bg-zinc-50 flex items-center justify-between border-b border-zinc-50 last:border-0 transition-colors"
+                  >
+                    <div>
+                      <div className="font-bold text-zinc-800">{r.name}</div>
+                      {r.phone && <div className="text-xs text-zinc-400 mt-1" dir="ltr">{r.phone}</div>}
+                    </div>
+                    <span className="text-[10px] font-black bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                      {r.type_label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
          </div>
 
          <div>
@@ -123,24 +167,25 @@ export default function UnifiedStatementReport() {
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
               className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm" />
          </div>
-
-         <div>
-            <label className="block text-sm font-black text-zinc-500 mb-2">اختر الـ {targetType === 'customer' ? 'تاجر' : 'مزارع'}</label>
-            <select 
-              className="w-full bg-zinc-50 border-2 border-zinc-100 rounded-2xl px-5 py-3 focus:border-purple-600 outline-none transition-all font-bold text-sm"
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              disabled={loadingTargets}
-            >
-               <option value="">-- يرجى الاختيار --</option>
-               {targets?.results?.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.name} {t.phone ? `(${t.phone})` : ''}</option>
-               ))}
-               {!targets?.results && targets?.map && targets.map((t: any) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-               ))}
-            </select>
-         </div>
+         {targetId && (
+            <div className="md:col-span-4 flex items-center justify-between bg-purple-50 p-4 rounded-2xl mt-2 border border-purple-100">
+               <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-purple-600">account_circle</span>
+                  <div>
+                    <span className="text-sm font-black text-purple-900 block">عرض كشف حساب: {targetName}</span>
+                    <span className="text-xs text-purple-600 font-bold">يمكنك مسح الإدخال للبحث عن حساب آخر</span>
+                  </div>
+               </div>
+               <button onClick={() => {
+                  setTargetId('');
+                  setTargetType('');
+                  setTargetName('');
+                  setSearchQuery('');
+               }} className="text-rose-500 hover:text-rose-700 font-bold text-sm bg-white px-3 py-1.5 rounded-xl shadow-sm">
+                  إلغاء التحديد
+               </button>
+            </div>
+         )}
       </div>
 
       {/* Report Table */}
@@ -164,9 +209,9 @@ export default function UnifiedStatementReport() {
          <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-zinc-100">
            {/* Report Info Head */}
            <div className="p-6 border-b border-zinc-100 bg-zinc-50 flex justify-between items-center print-header">
-              <div>
-                 <h3 className="text-xl font-black">كشف حساب: {targets?.results?.find((t: any) => t.id === targetId)?.name || targets?.find((t: any) => t.id === targetId)?.name}</h3>
-                 <p className="text-sm font-bold text-zinc-500">{targetType === 'customer' ? 'زبونيات وذمم' : 'موردين ومزارعين'} • الرصيد الإجمالي المعادل بالشيكل: <span className="text-purple-700">{report?.total_balance_base} ₪</span></p>
+               <div>
+                 <h3 className="text-xl font-black">كشف حساب: {targetName}</h3>
+                 <p className="text-sm font-bold text-zinc-500">نوع الحساب يعتمد على التحديد • الرصيد الإجمالي المعادل بالشيكل: <span className="text-purple-700">{report?.total_balance_base} ₪</span></p>
               </div>
            </div>
            
@@ -176,62 +221,52 @@ export default function UnifiedStatementReport() {
                  <tr className="bg-white text-[11px] font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-200">
                    <th className="px-6 py-4">التاريخ</th>
                    <th className="px-6 py-4">البيان والمرجع</th>
-                   <th className="px-6 py-4">العملة الأصلية</th>
-                   <th className="px-6 py-4">المبلغ الفعلي</th>
-                   <th className="px-6 py-4">سعر الصرف</th>
                    <th className="px-6 py-4 border-r border-zinc-100 bg-purple-50/30 text-purple-700">مدين (+) بالأساسي</th>
                    <th className="px-6 py-4 bg-purple-50/30 text-purple-700">دائن (-) بالأساسي</th>
                    <th className="px-6 py-4 border-r border-zinc-100 bg-zinc-50 font-black">رصيد تراكمي (شيكل)</th>
                  </tr>
                </thead>
                               <tbody className="divide-y divide-zinc-50">
-                  {dateFrom && (
-                    <tr className="bg-zinc-100/50 font-black italic">
-                      <td className="px-6 py-4 text-xs text-zinc-400" dir="ltr">{dateFrom}</td>
-                      <td className="px-6 py-4 text-sm text-zinc-500 italic">رصيد قبل الفترة (Opening Balance)</td>
-                      <td className="px-6 py-4">---</td>
-                      <td className="px-6 py-4">---</td>
-                      <td className="px-6 py-4">---</td>
-                      <td className="px-6 py-4 border-r border-zinc-100 bg-rose-50/5">---</td>
-                      <td className="px-6 py-4 bg-emerald-50/5">---</td>
-                      <td className="px-6 py-4 border-r border-zinc-100 bg-zinc-100 font-black text-rose-600">
-                        {openingBalance.toLocaleString()} ₪
-                      </td>
-                    </tr>
-                  )}
-                 {statement.map((s: any, idx: number) => {
-                    const isDebit = s.entry_type === 'DR';
-                    return (
-                       <tr key={idx} className="hover:bg-zinc-50/50 transition-colors">
-                         <td className="px-6 py-4 text-xs font-bold text-zinc-500 whitespace-nowrap" dir="ltr">{s.date}</td>
-                         <td className="px-6 py-4">
-                            <div className="font-bold text-sm text-zinc-800">{s.description}</div>
-                            <div className="text-[10px] text-zinc-400 mt-1 uppercase">{s.reference_type} #{s.reference_id.substring(0,6)}</div>
-                         </td>
-                         <td className="px-6 py-4 text-xs font-black text-zinc-500 bg-zinc-50/50">
-                            {s.currency_code}
-                         </td>
-                         <td className="px-6 py-4 text-sm font-black text-zinc-700 bg-zinc-50/50">
-                            {parseFloat(s.foreign_amount).toLocaleString()} 
-                         </td>
-                         <td className="px-6 py-4 text-[10px] font-bold text-zinc-400 mt-1">
-                            {s.currency_code !== 'ILS' ? `x ${s.exchange_rate}` : '---'}
-                         </td>
-                         {/* Base Equivalent DR */}
-                         <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-rose-50/20 ${isDebit ? 'text-rose-600' : 'text-zinc-300'}`}>
-                            {isDebit ? parseFloat(s.base_amount).toLocaleString() : ''}
-                         </td>
-                         {/* Base Equivalent CR */}
-                         <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-emerald-50/20 ${!isDebit ? 'text-emerald-600' : 'text-zinc-300'}`}>
-                            {!isDebit ? parseFloat(s.base_amount).toLocaleString() : ''}
-                         </td>
-                         {/* Running Balance */}
-                         <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-zinc-50 ${parseFloat(s.running_balance_base) >= 0 ? 'text-zinc-800' : 'text-rose-600'}`}>
-                            {parseFloat(s.running_balance_base).toLocaleString()} ₪
-                         </td>
-                       </tr>
-                    );
-                 })}
+                   {dateFrom && (
+                     <tr className="bg-zinc-100/50 font-black italic">
+                       <td className="px-6 py-4 text-xs text-zinc-400" dir="ltr">{formatDateDisplay(dateFrom)}</td>
+                       <td className="px-6 py-4 text-sm text-zinc-500 italic">رصيد قبل الفترة (Opening Balance)</td>
+                       <td className="px-6 py-4 border-r border-zinc-100 italic">{openingBalance.toLocaleString()} ₪</td>
+                       <td className="px-6 py-4 italic">---</td>
+                       <td className="px-6 py-4 border-r border-zinc-100 bg-zinc-100 font-black text-rose-600">
+                         {openingBalance.toLocaleString()} ₪
+                       </td>
+                     </tr>
+                   )}
+                  {statement.map((s: any, idx: number) => {
+                     return (
+                        <tr key={idx} className={`hover:bg-zinc-50/50 transition-colors ${s.is_realtime ? 'bg-amber-50/30' : ''}`}>
+                          <td className="px-6 py-4 text-xs font-bold text-zinc-500 whitespace-nowrap" dir="ltr">{formatDateDisplay(s.date)}</td>
+                          <td className="px-6 py-4">
+                             <div className="font-bold text-sm text-zinc-800">{s.description}</div>
+                             <div className="text-[10px] text-zinc-400 mt-1 uppercase">{s.reference}</div>
+                             {s.is_realtime && (
+                               <div className="flex items-center gap-1 mt-1">
+                                 <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+                                 <span className="text-[10px] text-amber-600 font-black">قيد التصفية</span>
+                               </div>
+                             )}
+                          </td>
+                          {/* Base Equivalent DR */}
+                          <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-rose-50/20 ${s.dr > 0 ? 'text-rose-600' : 'text-zinc-300'}`}>
+                             {s.dr > 0 ? Number(s.dr).toLocaleString() : ''}
+                          </td>
+                          {/* Base Equivalent CR */}
+                          <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-emerald-50/20 ${s.cr > 0 ? 'text-emerald-600' : 'text-zinc-300'}`}>
+                             {s.cr > 0 ? Number(s.cr).toLocaleString() : ''}
+                          </td>
+                          {/* Running Balance */}
+                          <td className={`px-6 py-4 text-sm font-black border-r border-zinc-100 bg-zinc-50 ${Number(s.balance) >= 0 ? 'text-zinc-800' : 'text-rose-600'}`}>
+                             {Number(s.balance).toLocaleString()} ₪
+                          </td>
+                        </tr>
+                     );
+                  })}
                </tbody>
              </table>
            </div>

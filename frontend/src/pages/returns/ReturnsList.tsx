@@ -48,7 +48,7 @@ export default function ReturnsList() {
             className={`px-8 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'purchase' ? 'bg-white text-rose-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
             onClick={() => setActiveTab('purchase')}
           >
-            مرتجع للموردين (فلاح)
+            مرتجع للمزارعين (فلاح)
           </button>
         </div>
       </div>

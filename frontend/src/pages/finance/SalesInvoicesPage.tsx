@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/baseApi';
 import { useToast } from '../../components/ui/Toast';
 import { VegetableLoader } from '../../components/ui/VegetableLoader';
@@ -42,23 +43,39 @@ function PaymentBadge({ type }: { type: string }) {
 
 export default function SalesInvoicesPage() {
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.slice(0, 8) + '01';
 
-  const [dateFrom, setDateFrom]       = useState(monthStart);
-  const [dateTo, setDateTo]           = useState(today);
-  const [cancelledFlt, setCancelledFlt] = useState('false');
-  const [customerFlt, setCustomerFlt]  = useState('');
+  const initialFrom = searchParams.get('from') || monthStart;
+  const initialTo = searchParams.get('to') || today;
+  const initialCancelled = searchParams.get('cancelled') || 'false';
+  const initialCustomer = searchParams.get('customer') || '';
+
+  const [dateFrom, setDateFrom]       = useState(initialFrom);
+  const [dateTo, setDateTo]           = useState(initialTo);
+  const [cancelledFlt, setCancelledFlt] = useState(initialCancelled);
+  const [customerFlt, setCustomerFlt]  = useState(initialCustomer);
   const [selectedId, setSelectedId]    = useState<string | null>(null);
   const [editingId, setEditingId]      = useState<string | null>(null);
   const [cancelDialog, setCancelDialog] = useState<{ id: string; name: string } | null>(null);
   const [cancelReason, setCancelReason] = useState('');
 
-  const { data, isLoading, refetch } = useGetInvoicesQuery({ from: dateFrom, to: dateTo, cancelled: cancelledFlt, customer: customerFlt || undefined });
+  useEffect(() => {
+    const next: any = { from: dateFrom, to: dateTo, cancelled: cancelledFlt };
+    if (customerFlt) next.customer = customerFlt;
+    setSearchParams(next, { replace: true });
+  }, [dateFrom, dateTo, cancelledFlt, customerFlt, setSearchParams]);
+
+  const { data, isLoading, refetch } = useGetInvoicesQuery(
+    { from: dateFrom, to: dateTo, cancelled: cancelledFlt, customer: customerFlt || undefined },
+    { refetchOnMountOrArgChange: true, refetchOnFocus: true, refetchOnReconnect: true }
+  );
   const { data: custData } = useGetCustomersQuery({});
   const [cancelInvoice, { isLoading: cancelling }] = useCancelInvoiceMutation();
 
-  const invoices = data?.results || [];
+  const invoices = Array.isArray(data) ? data : (data?.results || []);
+  const invoicesCount = Array.isArray(data) ? invoices.length : (data?.count || invoices.length);
   const customers = custData?.results || (Array.isArray(custData) ? custData : []);
 
   const handleCancel = async () => {
@@ -119,7 +136,7 @@ export default function SalesInvoicesPage() {
       <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e4e4e7', padding: '12px 20px', display: 'flex', gap: '16px' }}>
           <span style={{ fontWeight: 700, color: '#71717a', fontSize: '13px' }}>عدد الفواتير:</span>
-          <span style={{ fontWeight: 900, color: '#18181b' }}>{data?.count || invoices.length}</span>
+          <span style={{ fontWeight: 900, color: '#18181b' }}>{invoicesCount}</span>
         </div>
         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e4e4e7', padding: '12px 20px', display: 'flex', gap: '16px' }}>
           <span style={{ fontWeight: 700, color: '#71717a', fontSize: '13px' }}>الإجمالي:</span>
@@ -258,10 +275,16 @@ function EditInvoiceModal({ id, onClose, customers }: { id: string; onClose: () 
     const newItems = [...form.items];
     newItems[index][field] = value;
     
-    // Recalc subtotal
+    // Recalc subtotal using weight logic if applicable
     const q = parseFloat(newItems[index].quantity || 0);
     const p = parseFloat(newItems[index].unit_price || 0);
-    newItems[index].subtotal = (q * p).toFixed(3);
+    const g = parseFloat(newItems[index].gross_weight || 0);
+    const n = parseFloat(newItems[index].net_weight || 0);
+    
+    // Most shipments use 'net' weight for pricing if weight is provided, otherwise qty
+    // For editing, we check if net_weight exists and is > 0
+    const baseAmount = (n > 0) ? n : (g > 0 ? g : q);
+    newItems[index].subtotal = (baseAmount * p).toFixed(3);
 
     setForm({ ...form, items: newItems });
   };
@@ -377,7 +400,7 @@ function InvoiceDetailModal({ id, onClose }: { id: string; onClose: () => void }
                   {inv.cancelled && <span style={{ marginRight: '12px', background: '#fee2e2', color: '#991b1b', padding: '3px 12px', borderRadius: '20px', fontSize: '12px' }}>ملغاة</span>}
                 </h2>
                 <p style={{ margin: 0, color: '#71717a', fontSize: '13px' }}>
-                  {inv.customer_name || 'بيع نقدي'} &bull; {inv.sale_date && new Date(inv.sale_date).toLocaleString('ar-EG')} &bull; {inv.payment_type === 'cash' ? 'نقدي' : 'آجل'}
+                  {inv.customer_name || 'بيع نقدي'} &bull; {inv.sale_date && new Date(inv.sale_date).toLocaleString('en-GB')} &bull; {inv.payment_type === 'cash' ? 'نقدي' : 'آجل'}
                 </p>
                 {inv.cancel_reason && (
                   <p style={{ margin: '8px 0 0', color: '#dc2626', fontWeight: 700, fontSize: '12px' }}>

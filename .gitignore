@@ -44,3 +44,5 @@ Thumbs.db
 .env
 backend/.env
 frontend/.env
+db.sqlite3
+scratch/

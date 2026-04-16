@@ -49,12 +49,15 @@ export const api = createApi({
     }),
     searchParties: build.query({
       query: (q) => `reports/search-parties/?q=${encodeURIComponent(q)}`,
+      providesTags: ['Customers', 'Suppliers', 'Employees', 'Partners'],
     }),
     getAccounts: build.query({
       query: (q) => `finance/accounts/?search=${encodeURIComponent(q || '')}`,
+      providesTags: ['Accounts'],
     }),
     searchCatalog: build.query({
       query: (q) => `inventory/items/?search=${encodeURIComponent(q || '')}`,
+      providesTags: ['Items'],
     }),
   }),
 });

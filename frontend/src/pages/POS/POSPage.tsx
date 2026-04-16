@@ -626,7 +626,7 @@ export default function POSPage() {
           </div>
        </div>
 
-       {editingInvoiceId && <EditInvoiceModalFromPOS id={editingInvoiceId} onClose={()=>setEditingInvoiceId(null)} customers={customers} onSave={()=>{ setEditingInvoiceId(null); showToast('تم تحديث الفاتورة', 'success'); }} />}
+       {editingInvoiceId && <EditInvoiceModalFromPOS id={editingInvoiceId} onClose={()=>setEditingInvoiceId(null)} onSave={()=>{ setEditingInvoiceId(null); showToast('تم تحديث الفاتورة', 'success'); }} />}
 
        {showExchangeModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -644,7 +644,7 @@ export default function POSPage() {
   );
 }
 
-function EditInvoiceModalFromPOS({ id, onClose, customers, onSave }: any) {
+function EditInvoiceModalFromPOS({ id, onClose, onSave }: any) {
   const { data: inv, isLoading } = useGetInvoiceDetailQuery(id);
   const [editInvoice, { isLoading: isSaving }] = useEditInvoiceMutation();
   const [form, setForm] = useState<any>(null);

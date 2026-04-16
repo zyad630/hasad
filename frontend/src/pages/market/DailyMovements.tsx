@@ -299,7 +299,7 @@ export default function DailyMovements() {
                              </div>
                            )}
                            onSelect={(p: any) => {
-                               setNewRow(prev => ({...prev, supplier: p.id, supplier_name: p.name}));
+                               setNewRow((prev: any) => ({...prev, supplier: p.id, supplier_name: p.name}));
                                setTimeout(() => document.getElementById('nr-item_name')?.focus(), 10);
                            }}
                            onEnterEmpty={() => document.getElementById('nr-item_name')?.focus()}
@@ -353,7 +353,7 @@ export default function DailyMovements() {
                              </div>
                            )}
                            onSelect={(p: any) => {
-                               setNewRow(prev => ({...prev, buyer: p.id, buyer_name: p.name}));
+                               setNewRow((prev: any) => ({...prev, buyer: p.id, buyer_name: p.name}));
                                setTimeout(() => document.getElementById('nr-sale_qty')?.focus(), 10);
                            }}
                            onEnterEmpty={() => document.getElementById('nr-sale_qty')?.focus()}

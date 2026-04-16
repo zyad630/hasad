@@ -102,7 +102,7 @@ export function SmartSearch({
       
       // If we got results back from an API search, they might already be filtered.
       // We should check if they are an array first.
-      const rawList = Array.isArray(raw) ? raw : (raw?.results || []);
+      const rawList = Array.isArray(raw) ? raw : ((raw as any)?.results || []);
       
       // We still filter to ensure relevance if onSearch returned a broad set or all records.
       const filtered = rawList.filter((item: any) => {

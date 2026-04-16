@@ -626,7 +626,7 @@ export default function POSPage() {
           </div>
        </div>
 
-       {editingInvoiceId && <EditInvoiceModalFromPOS id={editingInvoiceId} onClose={()=>setEditingInvoiceId(null)} onSave={()=>{ setEditingInvoiceId(null); showToast('تم تحديث الفاتورة', 'success'); }} />}
+       {editingInvoiceId && <EditInvoiceModalFromPOS id={editingInvoiceId} onClose={()=>setEditingInvoiceId(null)} triggerSearchParties={triggerSearchParties} onSave={()=>{ setEditingInvoiceId(null); showToast('تم تحديث الفاتورة', 'success'); }} />}
 
        {showExchangeModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -644,7 +644,7 @@ export default function POSPage() {
   );
 }
 
-function EditInvoiceModalFromPOS({ id, onClose, onSave }: any) {
+function EditInvoiceModalFromPOS({ id, onClose, triggerSearchParties, onSave }: any) {
   const { data: inv, isLoading } = useGetInvoiceDetailQuery(id);
   const [editInvoice, { isLoading: isSaving }] = useEditInvoiceMutation();
   const [form, setForm] = useState<any>(null);
@@ -653,6 +653,7 @@ function EditInvoiceModalFromPOS({ id, onClose, onSave }: any) {
     if (inv) {
       setForm({
         customer: inv.customer || '',
+        customer_name: inv.customer_name || '',
         payment_type: inv.payment_type || 'cash',
         currency_code: inv.currency_code || 'ILS',
         exchange_rate: inv.exchange_rate || '1.0',
@@ -687,11 +688,19 @@ function EditInvoiceModalFromPOS({ id, onClose, onSave }: any) {
       <div style={{ background: 'white', borderRadius: '16px', padding: '24px', maxWidth: '800px', width: '100%', direction: 'rtl', maxHeight: '90vh', overflowY: 'auto' }}>
         <h2 style={{ fontWeight: 900, marginBottom: '20px' }}>تعديل فاتورة مرحّلة</h2>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-           <div style={{ flex: 1 }}><label style={{ fontSize: '11px' }}>الزبون</label>
-             <select value={form.customer} onChange={e=>setForm({...form, customer:e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }}>
-               <option value="">نقدي</option>{customers.map((c: any)=><option key={c.id} value={c.id}>{c.name}</option>)}
-             </select>
-           </div>
+            <div style={{ flex: 1 }}><label style={{ fontSize: '11px', display: 'block', marginBottom: '4px' }}>الزبون</label>
+              <SmartSearch 
+                id="edit-inv-customer"
+                placeholder="ابحث عن زبون..."
+                onSearch={async (q) => {
+                   const res = await triggerSearchParties(q).unwrap();
+                   return res;
+                }}
+                onSelect={(p: any) => setForm({...form, customer: p.id, customer_name: p.name})}
+                value={form.customer_name || 'نقدي'}
+                style={{ width: '100%', border: '1px solid #ddd', borderRadius: '8px' }}
+              />
+            </div>
            <div style={{ flex: 2 }}><label style={{ fontSize: '11px' }}>السبب</label><input value={form.reason} onChange={e=>setForm({...form, reason:e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '8px' }} /></div>
         </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
